@@ -137,12 +137,16 @@ https://<site>/?key=moncode
 ```
 
 nginx pose alors un cookie valable deux ans ; les visites suivantes n'ont plus
-besoin du paramètre. L'app retient le code et le **réinjecte dans les liens de
-séance** qu'elle fabrique :
+besoin du paramètre. L'app retient le code et le **réinjecte en tête des liens
+de séance** qu'elle fabrique :
 
 ```
-https://<site>/?w=Full+Body~8~60~Pompes:30s:10&key=moncode
+https://<site>/?key=moncode&w=Full+Body~8~60~Pompes:30s:10
 ```
+
+En tête et non à la fin : la charge utile d'une séance n'a pas de longueur
+maximale, et un paramètre placé après elle se fait tronquer par les aperçus de
+messagerie.
 
 Un lien partagé reste donc ouvrable — mais il porte le code, donc son
 destinataire obtient l'accès complet au site. Ne le partagez qu'en connaissance

@@ -148,9 +148,13 @@ const WorkoutLink = (() => {
     const base = (!onWeb && publicBase())
       ? publicBase().replace(/\/+$/, '') + '/'
       : location.origin + location.pathname;
+    // Le code en tête, la séance ensuite : la charge utile d'une séance est
+    // longue et sans limite, et un paramètre placé après elle se fait tronquer
+    // par les aperçus de messagerie et les retours à la ligne.
     const code = accessCode();
-    return `${base}?${PARAM}=${encode(series)}`
-         + (code ? `&${CODE_PARAM}=${encodeURIComponent(code)}` : '');
+    return `${base}?`
+         + (code ? `${CODE_PARAM}=${encodeURIComponent(code)}&` : '')
+         + `${PARAM}=${encode(series)}`;
   }
 
   /** Drop ?w= from the address bar so a reload doesn't reopen the preview. */

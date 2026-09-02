@@ -273,6 +273,30 @@ les conditions de Gym visual.
 
 ---
 
+## 8bis. SITE FERMÉ PAR UN CODE
+
+L'instance peut être protégée : sans code, le serveur ne renvoie rien, pas même
+la page d'accueil. Le code se place EN TÊTE de la query string :
+
+    ?key=<code>&w=<nom>~<rounds>~<repos_round>~<exercice>…
+
+En tête et non à la fin : la charge utile d'une séance n'a pas de longueur
+maximale, et un paramètre placé après elle se fait tronquer par les aperçus de
+messagerie. L'ordre reste sans importance pour le décodage.
+
+Le code n'est PAS une donnée de séance : il n'a rien à voir avec la grammaire
+ci-dessus, il ouvre seulement l'accès au site. À la première visite le serveur
+pose un cookie de deux ans ; les liens suivants n'en ont plus besoin, mais le
+garder ne gêne pas.
+
+Attention à ne pas le confondre avec `code` : ce nom-là est réservé au retour
+d'autorisation OAuth de Spotify.
+
+Si vous générez des liens destinés à une instance fermée, ajoutez le code ;
+sinon vos liens renverront 403 chez leur destinataire.
+
+---
+
 ## 9. LIENS INVALIDES
 
 Aucun lien ne produit d'erreur visible. Quand le lien n'est pas exploitable,
