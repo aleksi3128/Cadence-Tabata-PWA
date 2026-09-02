@@ -729,12 +729,23 @@ const ExerciseDB = (() => {
     };
   }
 
-  /** Chemins des deux médias — la vignette s'affiche pendant que le GIF charge. */
+  /**
+   * Chemins des deux médias — la vignette s'affiche pendant que le GIF charge.
+   *
+   * La clé d'accès est reportée dans l'URL. Deux raisons :
+   *   — elle rend la requête valide par elle-même, sans dépendre du référent,
+   *     que certains contextes n'envoient pas ;
+   *   — elle change l'URL, ce qui contourne un cache navigateur empoisonné par
+   *     d'anciens 403 marqués « immutable » — sinon ces images restent cassées
+   *     un an, quoi qu'on corrige côté serveur.
+   */
   function media(ex) {
     if (!ex || !_cat) return null;
+    const key = typeof WorkoutLink !== 'undefined' ? WorkoutLink.accessCode() : '';
+    const q = key ? `?key=${encodeURIComponent(key)}` : '';
     return {
-      thumb: `${_cat.media.thumb}${ex.f}.jpg`,
-      gif:   `${_cat.media.gif}${ex.f}.gif`,
+      thumb: `${_cat.media.thumb}${ex.f}.jpg${q}`,
+      gif:   `${_cat.media.gif}${ex.f}.gif${q}`,
     };
   }
 
