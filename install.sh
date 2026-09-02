@@ -297,6 +297,11 @@ MAPEOF
   cat > /etc/nginx/snippets/tabata-gate.conf <<'GATEEOF'
 # GÉNÉRÉ par install.sh — inclus au niveau server du vhost tabata.
 # Rien ne sort du site sans le code, médias compris.
+#
+# Le refus est explicitement non stockable : sans ça un CDN en amont
+# (Cloudflare) garde le 403 et l'image reste cassée même une fois le code
+# fourni. C'est bien arrivé.
+add_header Cache-Control "no-store" always;
 if ($tabata_ok = 0) { return 403; }
 GATEEOF
 
@@ -382,15 +387,21 @@ ${REALIP}
     # .wav est absent des types par défaut de nginx : sans ça les sons du
     # timer partent en application/octet-stream. Ce bloc doit précéder celui
     # des médias : le premier regex qui matche gagne.
+    #
+    # PAS de « always » sur ces deux Cache-Control : il les appliquerait aussi
+    # aux réponses d'erreur, et un 403 du portail repartirait avec un cache
+    # d'un an. Un CDN en amont le mettrait alors en cache — l'image resterait
+    # cassée pour tout le monde, code valide ou non. Sans « always »,
+    # l'en-tête ne part qu'avec les réponses réussies.
     location ~* \.wav\$ {
         default_type audio/wav;
-        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        add_header Cache-Control "public, max-age=31536000, immutable";
         access_log off;
     }
 
     # Médias : le contenu ne change jamais sans changer de nom.
     location ~* \.(wav|mp3|png|jpe?g|gif|svg|webp|ico|woff2?)\$ {
-        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        add_header Cache-Control "public, max-age=31536000, immutable";
         access_log off;
     }
 
