@@ -157,6 +157,46 @@ apt-get install -y -qq nginx git curl ca-certificates
 ok "$(nginx -v 2>&1)"
 ok "git $(git --version | awk '{print $3}')"
 
+# ── 1bis. Ancienne installation ────────────────────────────────────
+# Le modèle historique (server-setup.sh) tirait le site construit depuis le
+# Mac par HTTP. Il partage avec celui-ci le nom de la commande de mise à jour
+# et celui des unités systemd — donc elles seront remplacées — mais il laisse
+# derrière lui un état et un webroot qui ne servent plus à rien.
+if [ -f /etc/default/tabata ]; then
+  say "Ancienne installation détectée"
+  info "Le modèle « tirage depuis le Mac » est en place sur ce conteneur."
+  info "Ses unités vont être remplacées ; le reste peut être supprimé."
+
+  # L'arrêter d'abord : sans ça son timer pourrait se déclencher en pleine
+  # installation et réécrire dans le webroot qu'on est en train de monter.
+  systemctl disable --now tabata-update.timer >/dev/null 2>&1 || true
+  ok "timer de l'ancien modèle arrêté"
+
+  OLD_ROOT="$(sed -n 's/^TABATA_WEBROOT=//p' /etc/default/tabata | tail -1)"
+  OLD_ROOT="${OLD_ROOT:-/var/www/tabata}"
+
+  printf '\n'
+  info "À supprimer : /etc/default/tabata, /var/lib/tabata"
+  [ "$OLD_ROOT" != "$WEBROOT" ] && [ -d "$OLD_ROOT" ] \
+    && info "            $OLD_ROOT ($(du -sh "$OLD_ROOT" 2>/dev/null | cut -f1) — l'ancien site)"
+
+  if confirm "Supprimer ces restes ?"; then
+    rm -f  /etc/default/tabata
+    rm -rf /var/lib/tabata
+    # Jamais le webroot courant : avec --webroot=/var/www/tabata, l'ancien et
+    # le nouveau sont le même dossier.
+    if [ "$OLD_ROOT" != "$WEBROOT" ] && [ -d "$OLD_ROOT" ]; then
+      case "$OLD_ROOT" in
+        /var/www/*) rm -rf "$OLD_ROOT"; ok "$OLD_ROOT supprimé" ;;
+        *) warn "$OLD_ROOT laissé en place (hors /var/www, suppression non automatique)" ;;
+      esac
+    fi
+    ok "restes de l'ancienne installation supprimés"
+  else
+    warn "restes conservés — ils ne gênent pas, mais ne servent plus"
+  fi
+fi
+
 # ── 2. Clone ───────────────────────────────────────────────────────
 say "2/4 · Site"
 
@@ -324,13 +364,6 @@ UPDEOF
 chmod +x /usr/local/bin/tabata-update
 bash -n /usr/local/bin/tabata-update || die "Le script de mise à jour généré est invalide."
 ok "/usr/local/bin/tabata-update"
-
-# L'ancien modèle (tirage HTTP depuis le Mac, cf. server-setup.sh) écrivait
-# dans le même webroot. Les deux se défairaient mutuellement.
-if systemctl list-unit-files 2>/dev/null | grep -q '^tabata-rebuild\.timer'; then
-  systemctl disable --now tabata-rebuild.timer >/dev/null 2>&1 || true
-  warn "timer « tabata-rebuild » désactivé (un seul modèle à la fois)"
-fi
 
 cat > /etc/systemd/system/tabata-update.service <<UNITEOF
 [Unit]
