@@ -325,6 +325,14 @@ else
   info "Rappel : les médias sont © Gym visual et ne peuvent pas être rediffusés."
 fi
 
+# « public » autorise tout cache intermédiaire à garder la réponse ET à la
+# resservir à n'importe qui. Sur un site fermé par un code, Cloudflare mettait
+# ainsi les médias en cache puis les servait sans cookie : la protection était
+# contournée. « private » laisse le navigateur les garder, mais l'interdit aux
+# caches partagés.
+MEDIA_CACHE="public"
+[ -n "$ACCESS_CODE" ] && MEDIA_CACHE="private"
+
 REALIP=""
 if [ -n "$PROXY_FROM" ]; then
   REALIP="    set_real_ip_from ${PROXY_FROM};
@@ -395,13 +403,13 @@ ${REALIP}
     # l'en-tête ne part qu'avec les réponses réussies.
     location ~* \.wav\$ {
         default_type audio/wav;
-        add_header Cache-Control "public, max-age=31536000, immutable";
+        add_header Cache-Control "${MEDIA_CACHE}, max-age=31536000, immutable";
         access_log off;
     }
 
     # Médias : le contenu ne change jamais sans changer de nom.
     location ~* \.(wav|mp3|png|jpe?g|gif|svg|webp|ico|woff2?)\$ {
-        add_header Cache-Control "public, max-age=31536000, immutable";
+        add_header Cache-Control "${MEDIA_CACHE}, max-age=31536000, immutable";
         access_log off;
     }
 

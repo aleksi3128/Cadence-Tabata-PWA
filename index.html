@@ -13,7 +13,10 @@
   <link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180x180.png">
 
   <!-- PWA -->
-  <link rel="manifest" href="manifest.json">
+  <!-- crossorigin : sans lui le navigateur récupère le manifeste SANS cookie,
+       et un site fermé par un code le lui refuse (403). L'installation en tant
+       qu'application échoue alors silencieusement. -->
+  <link rel="manifest" href="manifest.json" crossorigin="use-credentials">
   <meta name="theme-color" content="#0A0B0F">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
