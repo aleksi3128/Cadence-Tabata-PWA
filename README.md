@@ -76,13 +76,26 @@ récupérer avant de pouvoir cloner. L'API GitHub le sert directement :
 ```bash
 export GH_TOKEN=github_pat_xxxxxxxx
 
-curl -sL -H "Authorization: Bearer $GH_TOKEN" \
+# Vérifier le jeton AVANT de s'en servir : doit afficher votre identifiant.
+curl -fsSL -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/user \
+  | grep '"login"'
+
+# -f est indispensable : sans lui, curl écrirait le message d'erreur JSON de
+# l'API dans install.sh, et bash tenterait de l'exécuter.
+curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
      -H "Accept: application/vnd.github.raw" \
      -o install.sh \
      https://api.github.com/repos/aleksiiiiiii/Cadence-Tabata-PWA/contents/install.sh
 
 bash install.sh --token="$GH_TOKEN"
 ```
+
+Si `curl` sort en erreur 22 ou 56, le jeton est en cause — pas le dépôt :
+
+| Réponse | Cause |
+|---|---|
+| `401 Bad credentials` | `GH_TOKEN` vide, mal copié, ou jeton expiré |
+| `404 Not Found` | jeton sans accès à ce dépôt, ou fine-grained encore en attente d'approbation |
 
 Le script se charge du reste, jeton compris : il l'enregistre dans
 `/root/.git-credentials` en 0600, jamais dans l'URL du dépôt — là, il
