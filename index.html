@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>TABATA TIMER</title>
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/x-icon"   href="icons/favicon.ico" sizes="16x16 32x32 48x48">
+  <link rel="apple-touch-icon"           href="icons/icon-180x180.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="icons/icon-128x128.png">
+  <link rel="apple-touch-icon" sizes="167x167" href="icons/icon-192x192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180x180.png">
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0A0B0F">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="TABATA">
+  <meta name="mobile-web-app-capable" content="yes">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="phase-idle">
+
+<div class="app-layout">
+
+  <!-- ═══════════ TIMER SECTION ═══════════ -->
+  <main class="timer-section">
+
+    <!-- Top bar: stats + brand + panel toggle -->
+    <div class="top-bar">
+      <div class="top-bar-left">
+        <button class="home-btn" id="btnHome" title="Accueil">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9.5"/><path d="M9 21v-6h6v6"/>
+          </svg>
+        </button>
+        <div class="stat-block">
+          <span class="stat-label">ROUND</span>
+          <span class="stat-value" id="roundDisplay">—</span>
+        </div>
+      </div>
+
+      <div class="app-brand">
+        <span class="brand-name">TABATA</span>
+        <span class="brand-sub">TIMER</span>
+      </div>
+
+      <div class="top-bar-right">
+        <div class="stat-block">
+          <span class="stat-label">EXERCICE</span>
+          <span class="stat-value" id="exerciseDisplay">—</span>
+        </div>
+        <button class="panel-toggle-btn" id="panelToggle" title="Afficher/masquer la série">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <line x1="9" y1="3" x2="9" y2="21"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Session & round timers strip -->
+    <div class="session-strip" id="sessionStrip">
+      <div class="strip-item">
+        <span class="strip-label">SESSION</span>
+        <span class="strip-value" id="sessionTime">00:00</span>
+      </div>
+      <div class="strip-item">
+        <span class="strip-label">ROUND</span>
+        <span class="strip-value" id="roundTime">00:00</span>
+      </div>
+    </div>
+
+    <!-- Ring timer -->
+    <div class="timer-wrapper">
+      <div class="phase-halo" id="phaseHalo"></div>
+      <div class="timer-container">
+        <svg class="timer-ring" viewBox="0 0 320 320">
+          <circle class="ring-track" cx="160" cy="160" r="140"/>
+          <circle class="ring-fill" cx="160" cy="160" r="140" id="ringFill"
+                  transform="rotate(-90 160 160)"
+                  stroke-dasharray="0 879.6"/>
+        </svg>
+        <div class="timer-inner">
+          <div class="timer-digits" id="timerDigits">—</div>
+          <div class="phase-label" id="phaseLabel">PRÊT ?</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Exercise info + dots (regroupés) -->
+    <div class="exercise-info">
+      <div class="exercise-name" id="exerciseName">Chargez une série</div>
+      <!-- Note libre transportée par le lien (4ᵉ champ d'un exercice). Vide le
+           plus souvent : la règle CSS :empty la retire alors de la mise en page. -->
+      <div class="exercise-note" id="exerciseNote"></div>
+      <div class="exercise-sub" id="exerciseSub">→ Utilisez le panneau de droite</div>
+      <div class="dots-row" id="dotsRow"></div>
+    </div>
+
+    <!-- Exercise preview popup (shown during REST) -->
+    <div class="ex-preview" id="exPreview" style="display:none">
+      <div class="ex-preview-label">
+        PROCHAIN
+        <span class="ex-preview-swipe-hint">
+          glisser
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </span>
+      </div>
+      <img class="ex-preview-img" id="previewImg" alt="">
+      <div class="ex-preview-name" id="previewName"></div>
+      <div class="ex-preview-note" id="previewNote"></div>
+      <div class="ex-preview-track">
+        <div class="ex-preview-bar" id="previewBar"></div>
+      </div>
+    </div>
+
+    <!-- Rep-based exercises: no countdown, the athlete says when they're done -->
+    <button class="rep-done-btn" id="btnRepDone" style="display:none">
+      <span data-i18n="timer.rep_done">SUIVANT</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="4" y1="12" x2="18" y2="12"/><polyline points="12 5 19 12 12 19"/>
+      </svg>
+    </button>
+
+    <!-- Controls -->
+    <div class="controls-bar">
+      <button class="ctrl-btn ctrl-secondary" id="btnReset" title="Réinitialiser">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+          <path d="M3 3v5h5"/>
+        </svg>
+      </button>
+      <button class="ctrl-btn ctrl-primary" id="btnPlay">
+        <svg class="ico-play" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 20,12 5,21"/></svg>
+        <svg class="ico-pause" viewBox="0 0 24 24" fill="currentColor" style="display:none">
+          <rect x="5" y="3" width="4" height="18" rx="1"/><rect x="15" y="3" width="4" height="18" rx="1"/>
+        </svg>
+      </button>
+      <button class="ctrl-btn ctrl-secondary" id="btnSkip" title="Passer la phase">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <polygon points="5,4 15,12 5,20"/>
+          <rect x="18" y="4" width="3" height="16" rx="1"/>
+        </svg>
+      </button>
+    </div>
+
+  </main>
+
+  <!-- ═══════════ SERIES PANEL ═══════════ -->
+  <aside class="series-panel hidden" id="seriesPanel">
+
+    <div class="panel-head">
+      <h2 class="panel-title" data-i18n="panel.series">SÉRIE</h2>
+      <div class="panel-head-actions">
+        <!-- Language toggle -->
+        <button class="icon-btn lang-btn" id="langBtn" title="FR / EN">FR</button>
+        <!-- Light/dark mode toggle -->
+        <button class="icon-btn" id="themeBtn" title="Mode clair / sombre">
+          <svg id="icoSun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <circle cx="12" cy="12" r="5"/>
+            <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+            <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+          </svg>
+          <svg id="icoMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:none">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/>
+          </svg>
+        </button>
+        <!-- Sound toggle -->
+        <button class="icon-btn" id="soundBtn" title="Son on/off">
+          <svg id="icoSoundOn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="11,5 6,9 2,9 2,15 6,15 11,19"/>
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+          </svg>
+          <svg id="icoSoundOff" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none">
+            <polygon points="11,5 6,9 2,9 2,15 6,15 11,19"/>
+            <line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>
+          </svg>
+        </button>
+        <button class="icon-btn" id="closePanel" title="Fermer">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="panel-scroll">
+
+      <div class="form-group">
+        <label class="form-label" data-i18n="panel.series">NOM DE LA SÉRIE</label>
+        <input type="text" class="form-input" id="seriesName" data-i18n-ph="panel.name_placeholder" placeholder="Ma Série Tabata" value="Ma Série Tabata">
+      </div>
+
+      <div class="settings-row">
+        <div class="setting-item">
+          <label class="form-label" data-i18n="panel.rounds">ROUNDS</label>
+          <div class="num-control">
+            <button class="num-btn" data-field="rounds" data-dir="-1">−</button>
+            <input type="number" class="num-input" id="seriesRounds" value="8" min="1" max="99">
+            <button class="num-btn" data-field="rounds" data-dir="1">+</button>
+          </div>
+        </div>
+        <div class="setting-item">
+          <label class="form-label" data-i18n="panel.round_rest">REPOS ENTRE ROUNDS</label>
+          <div class="num-control">
+            <button class="num-btn" data-field="roundRest" data-dir="-5">−</button>
+            <input type="number" class="num-input" id="seriesRoundRest" value="60" min="0" max="300">
+            <button class="num-btn" data-field="roundRest" data-dir="5">+</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="toggle-row">
+        <span class="toggle-row-label" data-i18n="panel.visual_aid">Aide visuelle</span>
+        <button class="toggle-switch" id="togglePreview" data-on="true">
+          <div class="toggle-thumb"></div>
+        </button>
+      </div>
+
+      <div class="exercises-header">
+        <span class="section-label" data-i18n="panel.exercises">EXERCICES</span>
+        <button class="btn-add" id="btnAddExercise" data-i18n="panel.add_exercise">+ Ajouter</button>
+      </div>
+
+      <div class="exercise-list" id="exerciseList"></div>
+
+      <div class="divider"></div>
+
+      <div class="panel-actions">
+        <button class="action-btn btn-load-series" id="btnLoadSeries">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+          </svg>
+          <span data-i18n="panel.my_series">Mes Séries</span>
+        </button>
+        <button class="action-btn btn-save-series" id="btnSave">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+            <polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+          </svg>
+          <span data-i18n="panel.save">Sauvegarder</span>
+        </button>
+        <button class="action-btn btn-history" id="btnHistory">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+          </svg>
+          <span data-i18n="panel.history">Historique</span>
+        </button>
+      </div>
+
+      <div class="panel-actions">
+        <label class="action-btn btn-import" for="importFile">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          <span data-i18n="panel.import">Importer</span>
+          <input type="file" id="importFile" accept=".json,.csv" style="display:none">
+        </label>
+        <div class="export-wrap">
+          <button class="action-btn btn-export" id="btnExport">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            <span data-i18n="panel.export">Exporter</span>
+          </button>
+          <div class="export-menu" id="exportMenu" style="display:none">
+            <button data-fmt="json">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              JSON
+            </button>
+            <button data-fmt="csv">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>
+              CSV
+            </button>
+            <button data-fmt="link">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+              <span data-i18n="export.link">LIEN</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </aside>
+
+</div>
+
+<!-- ═══════════ SAVED SERIES MODAL ═══════════ -->
+<!-- ═══════════ EXERCISE PICKER — 1324 exercices du catalogue ═══════════ -->
+<div class="modal-backdrop" id="pickerModal" style="display:none">
+  <div class="modal picker">
+
+    <div class="modal-header">
+      <h3 data-i18n="picker.title">BIBLIOTHÈQUE</h3>
+      <button class="modal-close" id="closePicker" title="Fermer">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <!-- ── Liste ── -->
+    <div class="picker-browse" id="pickerBrowse">
+      <div class="picker-search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="search" id="pickerQuery" autocomplete="off" enterkeyhint="search"
+               data-i18n-ph="picker.search_ph" placeholder="Pompes, gainage, haltère…">
+      </div>
+
+      <div class="picker-filters">
+        <select class="picker-select" id="pickerBody"></select>
+        <select class="picker-select" id="pickerEquip"></select>
+        <button class="picker-reset" id="pickerReset" data-i18n="picker.reset">Tout</button>
+      </div>
+
+      <div class="picker-count" id="pickerCount"></div>
+      <div class="picker-grid" id="pickerGrid"></div>
+    </div>
+
+    <!-- ── Fiche d'un exercice ── -->
+    <div class="picker-detail" id="pickerDetail" style="display:none">
+      <button class="picker-back" id="pickerBack">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        <span data-i18n="picker.back">Retour</span>
+      </button>
+      <div class="picker-detail-scroll">
+        <img class="picker-detail-img" id="pickerDetailImg" alt="">
+        <h4 class="picker-detail-name" id="pickerDetailName"></h4>
+        <div class="picker-chips" id="pickerDetailChips"></div>
+        <div class="picker-steps" id="pickerDetailSteps"></div>
+      </div>
+      <button class="picker-choose" id="pickerChoose" data-i18n="picker.choose">Choisir cet exercice</button>
+    </div>
+
+    <!-- Condition de redistribution des médias : ne pas retirer. -->
+    <div class="picker-credit" id="pickerCredit"></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="savedModal" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 data-i18n="saved.title">MES SÉRIES</h3>
+      <button class="modal-close" id="closeSavedModal" title="Fermer">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="saved-list" id="savedList">
+      <p class="empty-msg">Aucune série sauvegardée.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ HISTORY MODAL ═══════════ -->
+<div class="modal-backdrop" id="historyModal" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 data-i18n="history.title">HISTORIQUE</h3>
+      <button class="modal-close" id="closeHistoryModal" title="Fermer">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="history-list" id="historyList">
+      <p class="empty-msg">Aucune séance enregistrée pour le moment.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ COMPLETION SCREEN ═══════════ -->
+<div class="completion-screen" id="completionScreen" style="display:none">
+  <div class="completion-box">
+    <div class="completion-trophy">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/>
+        <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
+        <path d="M4 22h16"/>
+        <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/>
+        <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/>
+        <path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/>
+      </svg>
+    </div>
+    <h1 class="completion-title" data-i18n="completion.title">SÉRIE TERMINÉE !</h1>
+    <p class="completion-series-name" id="completionSeriesName"></p>
+    <p class="completion-stats" id="completionStats"></p>
+    <button class="btn-restart" id="btnRestart" data-i18n="completion.restart">RECOMMENCER</button>
+    <button class="btn-menu" id="btnCompletionMenu" data-i18n="completion.menu">← MENU</button>
+  </div>
+</div>
+
+<!-- ═══════════ SHARE LINK MODAL ═══════════ -->
+<div class="modal-backdrop" id="linkModal" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 data-i18n="link.title">LIEN DE LA SÉANCE</h3>
+      <button class="modal-close" id="closeLinkModal" title="Fermer">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <p class="link-hint" data-i18n="link.hint">Toute la séance tient dans ce lien — l'ouvrir la charge directement.</p>
+    <input type="text" class="link-url" id="linkUrl" readonly spellcheck="false">
+    <div class="link-actions">
+      <button class="link-btn link-copy" id="linkCopyBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        <span data-i18n="link.copy">Copier</span>
+      </button>
+      <button class="link-btn link-share" id="linkShareBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+        <span data-i18n="link.share">Partager</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ SHARED WORKOUT LANDING ═══════════ -->
+<div class="link-preview-screen" id="linkPreviewScreen" style="display:none">
+  <div class="welcome-glow"></div>
+  <div class="lp-content">
+
+    <div class="lp-badge" data-i18n="link.shared">SÉANCE PARTAGÉE</div>
+    <h1 class="lp-name" id="lpName"></h1>
+    <div class="lp-meta" id="lpMeta"></div>
+    <div class="lp-duration" id="lpDuration">00:00</div>
+    <p class="lp-estimate-note" id="lpEstimateNote" data-i18n="link.estimate">Durée estimée — les exercices en répétitions n'ont pas de durée fixe.</p>
+
+    <div class="lp-list" id="lpList"></div>
+
+    <button class="lp-start" id="lpStart" data-i18n="link.start">DÉMARRER</button>
+
+    <div class="lp-secondary">
+      <button class="lp-sec-btn" id="lpSave" data-i18n="link.save">Ajouter à mes séries</button>
+      <button class="lp-sec-btn" id="lpEdit" data-i18n="link.edit">Modifier</button>
+    </div>
+
+  </div>
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<!-- ═══════════ CONFIRM MODAL ═══════════ -->
+<div class="modal-backdrop" id="confirmModal" style="display:none">
+  <div class="modal confirm-modal">
+    <p class="confirm-msg" id="confirmMsg">Êtes-vous sûr ?</p>
+    <div class="confirm-actions">
+      <button class="confirm-btn confirm-cancel" id="confirmCancel" data-i18n="confirm.cancel">Annuler</button>
+      <button class="confirm-btn confirm-ok" id="confirmOk" data-i18n="confirm.ok">Confirmer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ WELCOME SCREEN ═══════════ -->
+<div class="welcome-screen" id="welcomeScreen">
+  <div class="welcome-glow"></div>
+  <div class="welcome-content">
+
+    <header class="welcome-header">
+      <div class="welcome-brand" data-i18n="brand">TABATA TIMER</div>
+      <h1 class="welcome-hello" data-i18n="welcome.hello">NO EXCUSES.</h1>
+      <p class="welcome-tagline" data-i18n="welcome.tagline">PUSH YOUR LIMITS. EVERY REP COUNTS.</p>
+    </header>
+
+    <div class="welcome-sep"></div>
+
+    <section class="welcome-programs">
+      <p class="welcome-choose-label" data-i18n="welcome.choose">CHOISISSEZ VOTRE PROGRAMME</p>
+      <div class="welcome-grid" id="welcomeGrid">
+        <p class="welcome-msg">Chargement…</p>
+      </div>
+    </section>
+
+    <button class="welcome-skip" id="welcomeSkip">
+      <span data-i18n="welcome.configure">Configurer manuellement</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+    </button>
+
+    <button class="welcome-history-btn" id="welcomeHistoryBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <span data-i18n="welcome.history">Historique</span>
+    </button>
+
+    <button class="welcome-metrics-btn" id="welcomeMetricsBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      <span data-i18n="welcome.metrics">Mes mesures</span>
+    </button>
+
+  </div>
+</div>
+
+<!-- ═══════════ RUNNER HOME (build lite) ═══════════ -->
+<!-- Accueil du build « lite » : pas de bibliothèque de programmes, la séance
+     arrive d'ailleurs. Réutilise les styles de l'accueil complet. -->
+<div class="welcome-screen runner-home" id="runnerHome" style="display:none">
+  <div class="welcome-glow"></div>
+  <div class="welcome-content runner-content">
+
+    <header class="welcome-header">
+      <div class="welcome-brand" data-i18n="brand">TABATA TIMER</div>
+      <h1 class="welcome-hello" data-i18n="runner.title">CADENCE TABATA</h1>
+      <p class="welcome-tagline" data-i18n="runner.tagline">EXÉCUTE UNE SÉANCE VENUE DE N'IMPORTE QUELLE APP.</p>
+    </header>
+
+    <div class="welcome-sep"></div>
+
+    <section class="rh-block">
+      <p class="welcome-choose-label" data-i18n="runner.paste_label">COLLER UN LIEN DE SÉANCE</p>
+      <div class="rh-field">
+        <input id="rhInput" type="text" class="rh-input" autocomplete="off"
+               autocapitalize="off" autocorrect="off" spellcheck="false"
+               data-i18n-ph="runner.paste_ph"
+               placeholder="https://…/?w=Full+Body~8~60~Pompes:30s:10">
+        <button class="rh-go" id="rhGo" data-i18n="runner.go">LANCER</button>
+      </div>
+      <p class="rh-error" id="rhError" style="display:none"></p>
+    </section>
+
+    <section class="rh-block" id="rhSaved" style="display:none">
+      <p class="welcome-choose-label" data-i18n="runner.saved">MES SÉANCES</p>
+      <div class="rh-saved-list" id="rhSavedList"></div>
+    </section>
+
+    <button class="welcome-skip" id="rhCreate">
+      <span data-i18n="runner.create">Créer une séance</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+    </button>
+
+    <details class="rh-spec">
+      <summary data-i18n="runner.spec_title">Comment une autre app envoie une séance</summary>
+      <div class="rh-spec-body">
+        <pre class="rh-code">?w=Full+Body~8~60~Pompes:30s:10~Gainage:15x:20</pre>
+        <ul class="rh-legend">
+          <li><code>Full+Body</code> <span data-i18n="runner.spec_name">nom de la séance</span></li>
+          <li><code>8</code> <span data-i18n="runner.spec_rounds">nombre de rounds</span></li>
+          <li><code>60</code> <span data-i18n="runner.spec_round_rest">repos entre rounds, en secondes</span></li>
+          <li><code>Pompes:30s:10</code> <span data-i18n="runner.spec_ex">exercice : durée, puis repos</span></li>
+        </ul>
+        <p class="rh-note" data-i18n="runner.spec_units"><strong>30s</strong> = secondes · <strong>15x</strong> = répétitions (le chrono attend alors « SUIVANT »).</p>
+        <p class="rh-note"><a href="llms.txt" target="_blank" rel="noopener" data-i18n="runner.spec_full">Spécification complète →</a></p>
+      </div>
+    </details>
+
+  </div>
+</div>
+
+<!-- ═══════════ METRICS SCREEN ═══════════ -->
+<div class="metrics-screen" id="metricsScreen" style="display:none">
+
+  <!-- ── HUB : liste des catégories ── -->
+  <div class="metrics-view metrics-content" id="metricsHub">
+    <header class="metrics-header">
+      <button class="metrics-back" id="metricsHomeBack">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9.5"/></svg>
+        <span data-i18n="metrics.back">Accueil</span>
+      </button>
+      <h1 class="metrics-title" data-i18n="metrics.title">MES MESURES</h1>
+    </header>
+
+    <div class="metrics-hub-grid">
+      <button class="metrics-cat-card" data-cat="body">
+        <span class="metrics-cat-ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2.5"/><path d="M12 7.5V14m0 0-3.5 6m3.5-6 3.5 6M7 10l5 1 5-1"/></svg>
+        </span>
+        <span class="metrics-cat-txt">
+          <span class="metrics-cat-name" data-i18n="metrics.body">CORPS</span>
+          <span class="metrics-cat-desc" data-i18n="metrics.body_desc">Poids, taille, IMC</span>
+        </span>
+        <svg class="metrics-cat-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </button>
+
+      <button class="metrics-cat-card" data-cat="strength">
+        <span class="metrics-cat-ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5 17.5 17.5"/><path d="M4 8 8 4l3 3-4 4z"/><path d="M20 16l-4 4-3-3 4-4z"/></svg>
+        </span>
+        <span class="metrics-cat-txt">
+          <span class="metrics-cat-name" data-i18n="metrics.strength">FORCE</span>
+          <span class="metrics-cat-desc" data-i18n="metrics.strength_desc">Exercices, reps, charge</span>
+        </span>
+        <svg class="metrics-cat-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </button>
+
+      <button class="metrics-cat-card" data-cat="running">
+        <span class="metrics-cat-ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4" r="1.8"/><path d="M11 8 8 11l3 2 1 5m1-10 2 3 3 1M9 21l2-3"/></svg>
+        </span>
+        <span class="metrics-cat-txt">
+          <span class="metrics-cat-name" data-i18n="metrics.running">COURSE</span>
+          <span class="metrics-cat-desc" data-i18n="metrics.running_desc">Distance, temps, allure</span>
+        </span>
+        <svg class="metrics-cat-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </button>
+
+      <button class="metrics-cat-card" data-cat="notes">
+        <span class="metrics-cat-ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
+        </span>
+        <span class="metrics-cat-txt">
+          <span class="metrics-cat-name" data-i18n="metrics.notes">NOTES</span>
+          <span class="metrics-cat-desc" data-i18n="metrics.notes_desc">Métriques personnalisées</span>
+        </span>
+        <svg class="metrics-cat-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- ── PAGE : Corps ── -->
+  <div class="metrics-view metrics-content metrics-page" id="page-body" style="display:none">
+    <header class="metrics-header">
+      <button class="metrics-back" data-back>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+        <span data-i18n="metrics.categories">Catégories</span>
+      </button>
+      <h1 class="metrics-title" data-i18n="metrics.body">CORPS</h1>
+    </header>
+    <div class="metrics-chart" id="chart-body"></div>
+    <section class="metrics-card">
+      <div class="metrics-grid">
+        <div class="form-group">
+          <label class="form-label" data-i18n="metrics.weight">POIDS (KG)</label>
+          <input type="number" inputmode="decimal" step="0.1" class="form-input" id="mWeight" placeholder="75.0">
+        </div>
+        <div class="form-group">
+          <label class="form-label" data-i18n="metrics.height">TAILLE (CM)</label>
+          <input type="number" inputmode="decimal" step="0.1" class="form-input" id="mHeight" placeholder="180">
+        </div>
+      </div>
+      <button class="metrics-save" id="saveBody" data-i18n="metrics.save">Enregistrer</button>
+    </section>
+    <div class="metrics-hist-wrap">
+      <span class="metrics-hist-label" data-i18n="metrics.recent">Dernières entrées</span>
+      <div class="metrics-hist" id="hist-body"></div>
+    </div>
+  </div>
+
+  <!-- ── PAGE : Force ── -->
+  <div class="metrics-view metrics-content metrics-page" id="page-strength" style="display:none">
+    <header class="metrics-header">
+      <button class="metrics-back" data-back>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+        <span data-i18n="metrics.categories">Catégories</span>
+      </button>
+      <h1 class="metrics-title" data-i18n="metrics.strength">FORCE</h1>
+    </header>
+    <div class="metrics-chart" id="chart-strength"></div>
+    <section class="metrics-card">
+      <div class="form-group">
+        <label class="form-label" data-i18n="metrics.exercise">EXERCICE</label>
+        <input type="text" class="form-input" id="mExercise" data-i18n-ph="metrics.exercise_ph" placeholder="Développé couché">
+      </div>
+      <div class="metrics-grid">
+        <div class="form-group">
+          <label class="form-label" data-i18n="metrics.reps">RÉPÉTITIONS</label>
+          <input type="number" inputmode="numeric" class="form-input" id="mReps" placeholder="10">
+        </div>
+        <div class="form-group">
+          <label class="form-label" data-i18n="metrics.load">CHARGE (KG)</label>
+          <input type="number" inputmode="decimal" step="0.5" class="form-input" id="mLoad" placeholder="40">
+        </div>
+      </div>
+      <button class="metrics-save" id="saveStrength" data-i18n="metrics.save">Enregistrer</button>
+    </section>
+    <div class="metrics-hist-wrap">
+      <span class="metrics-hist-label" data-i18n="metrics.recent">Dernières entrées</span>
+      <div class="metrics-hist" id="hist-strength"></div>
+    </div>
+  </div>
+
+  <!-- ── PAGE : Course ── -->
+  <div class="metrics-view metrics-content metrics-page" id="page-running" style="display:none">
+    <header class="metrics-header">
+      <button class="metrics-back" data-back>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+        <span data-i18n="metrics.categories">Catégories</span>
+      </button>
+      <h1 class="metrics-title" data-i18n="metrics.running">COURSE</h1>
+    </header>
+    <div class="metrics-chart" id="chart-running"></div>
+    <section class="metrics-card">
+      <div class="metrics-grid">
+        <div class="form-group">
+          <label class="form-label" data-i18n="metrics.distance">DISTANCE (KM)</label>
+          <input type="number" inputmode="decimal" step="0.1" class="form-input" id="mDist" placeholder="5.0">
+        </div>
+        <div class="form-group">
+          <label class="form-label" data-i18n="metrics.duration">DURÉE (MIN)</label>
+          <input type="number" inputmode="decimal" step="0.1" class="form-input" id="mDur" placeholder="27.5">
+        </div>
+      </div>
+      <button class="metrics-save" id="saveRunning" data-i18n="metrics.save">Enregistrer</button>
+    </section>
+    <div class="metrics-hist-wrap">
+      <span class="metrics-hist-label" data-i18n="metrics.recent">Dernières entrées</span>
+      <div class="metrics-hist" id="hist-running"></div>
+    </div>
+  </div>
+
+  <!-- ── PAGE : Notes ── -->
+  <div class="metrics-view metrics-content metrics-page" id="page-notes" style="display:none">
+    <header class="metrics-header">
+      <button class="metrics-back" data-back>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+        <span data-i18n="metrics.categories">Catégories</span>
+      </button>
+      <h1 class="metrics-title" data-i18n="metrics.notes">NOTES</h1>
+    </header>
+    <div class="metrics-chart" id="chart-notes"></div>
+    <section class="metrics-card">
+      <div class="metrics-grid">
+        <div class="form-group">
+          <label class="form-label" data-i18n="metrics.metric">MÉTRIQUE</label>
+          <input type="text" class="form-input" id="mMetric" data-i18n-ph="metrics.metric_ph" placeholder="Tour de taille">
+        </div>
+        <div class="form-group">
+          <label class="form-label" data-i18n="metrics.value">VALEUR</label>
+          <input type="text" class="form-input" id="mValue" placeholder="82">
+        </div>
+      </div>
+      <button class="metrics-save" id="saveNotes" data-i18n="metrics.save">Enregistrer</button>
+    </section>
+    <div class="metrics-hist-wrap">
+      <span class="metrics-hist-label" data-i18n="metrics.recent">Dernières entrées</span>
+      <div class="metrics-hist" id="hist-notes"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══════════ SPOTIFY MINI-PLAYER ═══════════ -->
+<div class="sp-wrap sp-collapsed" id="spWrap">
+
+  <!-- Tab vertical (toujours visible) -->
+  <button class="sp-tab" id="spPill">
+    <svg class="sp-ico-logo" viewBox="0 0 24 24" fill="#1DB954"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.59 14.42a.62.62 0 0 1-.86.21c-2.35-1.44-5.3-1.76-8.78-.96a.62.62 0 0 1-.28-1.21c3.81-.87 7.08-.5 9.71 1.11a.62.62 0 0 1 .21.85zm1.22-2.72a.78.78 0 0 1-1.07.26c-2.69-1.65-6.79-2.13-9.97-1.17a.78.78 0 0 1-.44-1.49c3.63-1.05 8.15-.54 11.22 1.33a.78.78 0 0 1 .26 1.07zm.11-2.84C14.9 9.01 9.18 8.82 5.97 9.77a.94.94 0 0 1-.52-1.8c3.7-1.08 9.85-.87 13.73 1.35a.94.94 0 0 1-.36 1.79z"/></svg>
+    <span class="sp-tab-label">SPOTIFY</span>
+    <span class="sp-tab-track" id="spPillTrack"></span>
+  </button>
+
+  <!-- État étendu : card -->
+  <div class="sp-card" id="spCard">
+    <div class="sp-card-head">
+      <svg class="sp-ico-logo" viewBox="0 0 24 24" fill="#1DB954"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.59 14.42a.62.62 0 0 1-.86.21c-2.35-1.44-5.3-1.76-8.78-.96a.62.62 0 0 1-.28-1.21c3.81-.87 7.08-.5 9.71 1.11a.62.62 0 0 1 .21.85zm1.22-2.72a.78.78 0 0 1-1.07.26c-2.69-1.65-6.79-2.13-9.97-1.17a.78.78 0 0 1-.44-1.49c3.63-1.05 8.15-.54 11.22 1.33a.78.78 0 0 1 .26 1.07zm.11-2.84C14.9 9.01 9.18 8.82 5.97 9.77a.94.94 0 0 1-.52-1.8c3.7-1.08 9.85-.87 13.73 1.35a.94.94 0 0 1-.36 1.79z"/></svg>
+      <span class="sp-card-label">SPOTIFY</span>
+      <button class="sp-collapse-btn" id="spCollapseBtn" title="Réduire">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+    </div>
+    <div class="sp-card-body" id="spCardBody">
+      <div class="sp-now-playing">
+        <div class="sp-art-wrap">
+          <img class="sp-art" id="spArt" src="" alt="">
+          <div class="sp-art-placeholder" id="spArtPlaceholder">
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+              <rect x="12" y="17" width="76" height="16" rx="2"/>
+              <rect x="40.5" y="17" width="19" height="67" rx="2"/>
+            </svg>
+          </div>
+        </div>
+        <div class="sp-meta">
+          <div class="sp-track-row">
+            <div class="sp-track" id="spTrack">—</div>
+            <div class="sp-eq" id="spEq"><span></span><span></span><span></span><span></span></div>
+          </div>
+          <div class="sp-artist" id="spArtist">—</div>
+        </div>
+      </div>
+      <div class="sp-progress-row">
+        <span class="sp-time" id="spTimePos">0:00</span>
+        <div class="sp-bar" id="spBar">
+          <div class="sp-bar-fill" id="spBarFill" style="width:0%"></div>
+        </div>
+        <span class="sp-time" id="spTimeDur">0:00</span>
+      </div>
+      <div class="sp-controls">
+        <button class="sp-btn sp-btn-side" id="spPrev" title="Précédent">
+          <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="19,20 9,12 19,4"/><rect x="5" y="4" width="3" height="16" rx="1"/></svg>
+        </button>
+        <button class="sp-btn sp-btn-main" id="spPlayPause">
+          <svg class="sp-ico-play"  viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 20,12 5,21"/></svg>
+          <svg class="sp-ico-pause" viewBox="0 0 24 24" fill="currentColor" style="display:none"><rect x="5" y="3" width="4" height="18" rx="1"/><rect x="15" y="3" width="4" height="18" rx="1"/></svg>
+        </button>
+        <button class="sp-btn sp-btn-side" id="spNext" title="Suivant">
+          <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,4 15,12 5,20"/><rect x="16" y="4" width="3" height="16" rx="1"/></svg>
+        </button>
+      </div>
+      <button class="sp-connect" id="spConnect" style="display:none" data-i18n="spotify.connect">Connecter Spotify</button>
+      <p class="sp-hint" id="spHint">Appuie sur ▶ pour connecter Spotify</p>
+    </div>
+  </div>
+</div>
+
+<!-- Généré depuis .env par `npm run config` — absent du dépôt git -->
+<script src="js/config.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

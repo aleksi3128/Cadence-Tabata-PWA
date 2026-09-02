@@ -1,0 +1,318 @@
+# Cadence Tabata — format de lien de séance
+
+> Une séance d'entraînement complète est encodée dans une URL. Aucune API, aucun
+> compte, aucune base de données. Ouvrir le lien affiche la séance prête à démarrer.
+> Ce document est la spécification complète. Il est autosuffisant : tout ce qui est
+> nécessaire pour générer un lien valide est ici.
+
+Public : agents et outils qui génèrent des liens vers cette application.
+Version du format : 1. Stable.
+
+---
+
+## 1. GRAMMAIRE
+
+Un seul paramètre de query string, `w`.
+
+    <base>?w=<nom>~<rounds>~<repos_round>~<exercice>[~<exercice>...]
+
+    <exercice> = <nom_exercice>:<durée>:<repos>[:<note>]
+
+    <durée>    = <entier>"s"   → secondes  (l'exercice se termine tout seul)
+               | <entier>"x"   → répétitions (l'exercice attend un appui manuel)
+
+    <note>     = texte libre, OPTIONNEL — affiché sous le nom de l'exercice
+
+Séparateurs : `~` entre les segments, `:` entre les champs d'un exercice.
+Minimum 4 segments : nom, rounds, repos_round, et au moins un exercice.
+Aucune limite haute sur le nombre d'exercices.
+
+Le 4ᵉ champ est une addition rétrocompatible : un exercice à trois champs reste
+valide et se comporte exactement comme avant.
+
+Déroulé résultant : pour chaque round, les exercices sont enchaînés dans l'ordre,
+chacun suivi de son repos ; `repos_round` s'intercale entre deux rounds.
+
+---
+
+## 2. RÈGLE LA PLUS IMPORTANTE
+
+Le suffixe `x` est ce qui distingue répétitions et secondes. Il n'est PAS optionnel.
+
+    Pompes:15x:20   → 15 RÉPÉTITIONS, puis 20 s de repos     ✅
+    Pompes:15:20    → 15 SECONDES, puis 20 s de repos        ❌ si vous vouliez des reps
+
+C'est l'erreur la plus fréquente. Vérifiez chaque exercice en répétitions.
+
+Différence de comportement :
+- `30s` : décompte automatique, bips de repère à 30/20/10 s restantes (trois
+  bips, puis deux, puis un), bips sur les 3 dernières secondes, passage auto
+  au repos.
+- `15x` : PAS de décompte. Le chrono compte vers le haut et attend indéfiniment
+  que l'utilisateur appuie sur « SUIVANT ». Aucune durée n'est imposée.
+
+---
+
+## 3. ENCODAGE
+
+À l'intérieur d'un nom (nom de séance ou nom d'exercice), échapper :
+
+    ~   →  %7E      (sinon interprété comme séparateur de segment)
+    :   →  %3A      (sinon interprété comme séparateur de champ)
+
+Les séparateurs `~` et `:` que VOUS insérez entre les segments restent bruts.
+
+Algorithme d'échappement d'un nom :
+1. Appliquer un encodage URL composant standard (encodeURIComponent / quote(safe="")).
+2. Remplacer les `~` restants par `%7E` — la plupart des implémentations
+   considèrent le tilde comme non réservé et ne l'encodent pas.
+3. Optionnel, pour la lisibilité : remplacer `%20` par `+`.
+
+Accents, emoji, `&`, `#`, `%`, `=`, `+` : gérés par l'encodage URL standard de l'étape 1.
+
+---
+
+## 4. CHAMPS ET BORNES
+
+Les valeurs hors bornes sont ramenées dans l'intervalle, jamais rejetées.
+
+| Champ           | Position          | Bornes      | Absent / invalide      |
+|-----------------|-------------------|-------------|------------------------|
+| nom             | segment 1         | texte libre | `Workout`              |
+| rounds          | segment 2         | 1 – 99      | 1                      |
+| repos_round     | segment 3         | 0 – 900 s   | 0                      |
+| nom_exercice    | exercice, champ 1 | texte libre | exercice ignoré        |
+| durée (`30s`)   | exercice, champ 2 | 1 – 999 s   | 20s                    |
+| reps (`15x`)    | exercice, champ 2 | 1 – 999     | 20x (reste en reps)    |
+| repos           | exercice, champ 3 | 0 – 999 s   | 0                      |
+| note            | exercice, champ 4 | texte libre | aucune note affichée   |
+
+Tolérances acceptées :
+
+    Ex:30:5    → 30 secondes, 5 s de repos    (le "s" est optionnel)
+    Ex:15X:5   → 15 répétitions               (le "x" est insensible à la casse)
+    Ex:30s     → 30 secondes, 0 s de repos    (repos omis)
+    Ex         → 20 secondes, 0 s de repos    (tout omis)
+    Ex:0x:5    → 20 RÉPÉTITIONS               (piège : 0 est invalide, la valeur
+                                              retombe sur 20 ; le suffixe x reste)
+    Ex:30s:10:            → note vide, équivaut à Ex:30s:10
+    Ex:30s:10:20+kg       → note « 20 kg »
+    Ex:30s:10:tempo+3%3A1 → note « tempo 3:1 » (deux-points échappé)
+
+---
+
+## 5. ALGORITHME DE GÉNÉRATION
+
+    fonction construire_lien(base, nom, rounds, repos_round, exercices):
+        segments = [échapper(nom), rounds, repos_round]
+        pour chaque ex dans exercices:
+            si ex a des répétitions:
+                durée = ex.reps + "x"
+            sinon:
+                durée = ex.secondes + "s"
+            segments.ajouter(échapper(ex.nom) + ":" + durée + ":" + (ex.repos ou 0))
+        retourner base + "?w=" + joindre(segments, "~")
+
+Implémentation JavaScript de référence :
+
+    const enc = s => encodeURIComponent(String(s))
+      .replace(/~/g, '%7E')
+      .replace(/%20/g, '+');
+
+    function buildWorkoutUrl(baseUrl, workout) {
+      const parts = [enc(workout.name), workout.rounds, workout.roundRest];
+      for (const ex of workout.exercises) {
+        const dur = ex.reps ? `${ex.reps}x` : `${ex.seconds}s`;
+        parts.push(`${enc(ex.name)}:${dur}:${ex.rest ?? 0}`);
+      }
+      return `${baseUrl}?w=${parts.join('~')}`;
+    }
+
+Implémentation Python de référence :
+
+    from urllib.parse import quote
+
+    def enc(s):
+        return quote(str(s), safe="").replace("~", "%7E").replace("%20", "+")
+
+    def build_workout_url(base_url, name, rounds, round_rest, exercises):
+        parts = [enc(name), str(rounds), str(round_rest)]
+        for ex in exercises:
+            dur = f"{ex['reps']}x" if ex.get("reps") else f"{ex['seconds']}s"
+            parts.append(f"{enc(ex['name'])}:{dur}:{ex.get('rest', 0)}")
+        return f"{base_url}?w=" + "~".join(parts)
+
+---
+
+## 6. EXEMPLES VÉRIFIÉS
+
+Chaque exemple ci-dessous a été décodé par l'implémentation réelle de l'application.
+
+EX1 — Tabata classique, uniquement au temps
+    ?w=Tabata+Classique~8~60~Squats:20s:10~Pompes:20s:10~Burpees:20s:10
+    → « Tabata Classique », 8 rounds, 60 s entre rounds
+      Squats 20 s (+10 s) | Pompes 20 s (+10 s) | Burpees 20 s (+10 s)
+
+EX2 — Mixte temps et répétitions
+    ?w=Full+Body~3~45~Crunchs:30s:10~Push-Ups+Classic:15x:20~Skater+Jumps:45s:15
+    → « Full Body », 3 rounds, 45 s entre rounds
+      Crunchs 30 s (+10 s) | Push-Ups Classic 15 reps (+20 s) | Skater Jumps 45 s (+15 s)
+
+EX3 — Uniquement des répétitions
+    ?w=Force+Haut+du+Corps~4~90~Pull-ups:8x:30~Dips:12x:30~Pike+Push-ups:15x:45
+    → « Force Haut du Corps », 4 rounds, 90 s entre rounds
+      Pull-ups 8 reps (+30 s) | Dips 12 reps (+30 s) | Pike Push-ups 15 reps (+45 s)
+
+EX4 — Nom contenant des caractères à échapper
+    ?w=S%C3%A9ance+%C2%AB+Jambes+%C2%BB+100%25~2~30~D%C3%A9velopp%C3%A9+couch%C3%A9+%7E+tempo+2%3A1:12x:60~Fentes+arri%C3%A8re:40s:20
+    → « Séance « Jambes » 100% », 2 rounds, 30 s entre rounds
+      « Développé couché ~ tempo 2:1 » 12 reps (+60 s) | « Fentes arrière » 40 s (+20 s)
+
+EX5 — Un seul exercice, un seul round
+    ?w=Gainage~1~0~Plank:60s:0
+    → « Gainage », 1 round, 0 s entre rounds
+      Plank 60 s (+0 s)
+
+EX6 — Notes sur certains exercices seulement
+    ?w=Haut+du+corps~3~60~Pompes:30s:15:halt%C3%A8res+12+kg~Gainage:45s:15~Rowing:12x:30:barre+40+kg
+    → « Haut du corps », 3 rounds, 60 s entre rounds
+      Pompes 30 s (+15 s)   note « haltères 12 kg »
+      Gainage 45 s (+15 s)  aucune note
+      Rowing 12 reps (+30 s) note « barre 40 kg »
+
+---
+
+## 7. DURÉES ET ESTIMATIONS
+
+Une séance uniquement au temps a une durée exacte :
+
+    total = (Σ(durée + repos)) × rounds + repos_round × (rounds − 1)
+
+Dès qu'un exercice est en répétitions, la durée devient une ESTIMATION : personne
+ne sait combien de temps prendra une série. L'application estime 2 secondes par
+répétition (minimum 10 s par exercice) et préfixe les totaux affichés d'un `~`.
+
+N'annoncez jamais une durée exacte pour une séance contenant des répétitions.
+
+---
+
+## 8. NOMS D'EXERCICES ET DÉMONSTRATIONS
+
+N'importe quel nom fonctionne : la séance se déroule normalement quel que soit
+l'intitulé. Le nom détermine uniquement si une DÉMONSTRATION ANIMÉE est affichée
+pendant le repos qui précède l'exercice.
+
+L'app embarque une bibliothèque de 1324 exercices, chacun avec un GIF animé, une
+vignette et des instructions pas à pas en français et en anglais. Le nom écrit
+dans le lien y est rapproché automatiquement.
+
+### Ce que la correspondance sait faire
+
+    « push ups classic »   → push-up                 casse et pluriel ignorés
+    « Pushups Classic »    → push-up                 graphie collée acceptée
+    « Push-Ups »           → push-up                 ponctuation ignorée
+    « Crunches »           → crunch floor            pluriel en -es toléré
+    « Goblet Squat »       → dumbbell goblet squat   correspondance partielle
+    « Mountain Climbers »  → mountain climber
+    « barbell full squat » → barbell full squat      nom exact du catalogue
+
+Le français est reconnu, mot à mot :
+
+    « Pompes »             → push-up
+    « Tractions »          → pull-up
+    « Abdos »              → crunch floor
+    « Corde à sauter »     → jump rope
+    « Gainage »            → power point plank
+    « Fentes »             → lunge with jump
+    « Développé couché »   → band bench press
+
+### Ses limites
+
+    « Reverse Snow Angels » → aucune    absent de la bibliothèque
+    « Squats »              → squat jerk   ⚠️ pas forcément la variante voulue
+
+Quand la moitié au moins des mots du nom ne retrouve rien, l'app n'affiche RIEN
+plutôt qu'une démonstration fausse. Un nom sans correspondance reste parfaitement
+valide : la séance se déroule, sans image.
+
+### Être certain de la démonstration
+
+Un nom approché suffit dans l'immense majorité des cas. Pour lever tout doute,
+reprenez le nom EXACT du catalogue. Il est servi par l'app elle-même :
+
+    GET  <racine du site>/exercise-db/catalog.json      (128 ko)
+
+Une entrée par exercice, dans le tableau « exercises » :
+
+    { "i": "0043",                 identifiant interne
+      "n": "barbell full squat",   NOM EXACT — c'est ce champ qu'il faut reprendre
+      "f": "0043-qXTaZnJ",         nom de fichier du média
+      "b": 8, "e": 2, "t": 8,        indices dans bodyParts / equipment / targets
+      "s": [6, 8, 15, 24] }       indices dans muscles (muscles secondaires)
+
+soit : upper legs · barbell · cible glutes
+
+Les quatre listes « bodyParts », « equipment », « targets » et « muscles » sont
+à la racine du même fichier : b/e/t/s y renvoient par indice. De quoi filtrer un
+choix d'exercices par zone du corps ou par matériel disponible avant de composer
+la séance.
+
+Dans le dépôt, le fichier est en `www/exercise-db/catalog.json`, régénéré par
+`npm run fetch:exercises`.
+
+Depuis l'app, le bouton loupe de chaque ligne d'exercice ouvre la bibliothèque :
+l'exercice choisi là est lié par identifiant, donc le renommer ne lui fait pas
+perdre sa démonstration. Un lien `?w=` ne transporte en revanche que des noms —
+c'est le rapprochement ci-dessus qui s'applique.
+
+### Médias
+
+Les vignettes et les GIFs sont © Gym visual (https://gymvisual.com/), affichés
+en 180×180 avec la mention de copyright. Ne pas les redistribuer sans vérifier
+les conditions de Gym visual.
+
+---
+
+## 9. LIENS INVALIDES
+
+Aucun lien ne produit d'erreur visible. Quand le lien n'est pas exploitable,
+l'application s'ouvre simplement sur son écran d'accueil.
+
+    ?w=                          → accueil (vide)
+    ?w=MaSéance                  → accueil (segments manquants)
+    ?w=A~8~60                    → accueil (aucun exercice)
+    ?w=A~8~60~:30s:10            → accueil (nom d'exercice vide)
+    ?w=A~8~60~:30s:10~B:20s:5    → séance à 1 exercice (l'anonyme est ignoré, B est gardé)
+    ?w=A~500~99999~Ex:5000s:-9   → séance valide (bornée à 99 rounds, 900 s, 999 s, 0 s)
+
+Les autres paramètres de query string sont ignorés : `utm_source` et consorts
+passent sans gêner. L'ordre des paramètres n'a pas d'importance.
+
+---
+
+## 10. CE QUE VOIT L'UTILISATEUR
+
+1. Écran de la séance : nom, rounds, liste des exercices, durée. Trois actions —
+   Démarrer, Ajouter à mes séries, Modifier.
+2. Le lien N'AUTO-DÉMARRE JAMAIS. Un appui est requis, notamment parce que les
+   navigateurs bloquent l'audio tant qu'aucun geste utilisateur n'a eu lieu.
+3. Compte à rebours de 3 secondes, puis la séance s'enchaîne.
+4. La NOTE d'un exercice (4ᵉ champ) apparaît à deux endroits, et seulement
+   là : sous le nom de l'exercice pendant qu'il tourne, et sous son nom sur la
+   carte « PROCHAIN » affichée pendant le repos qui le précède. Elle n'est pas
+   reprise sur l'écran d'ouverture du lien. Prévoyez une ligne, pas plus.
+5. L'application est une PWA : après une première visite, les liens fonctionnent
+   hors ligne, tout étant décodé côté client.
+
+---
+
+## 11. LISTE DE VÉRIFICATION AVANT DE PRODUIRE UN LIEN
+
+- [ ] Chaque exercice en répétitions porte bien le suffixe `x`.
+- [ ] Les `~` et `:` présents dans les noms sont échappés en `%7E` et `%3A`.
+- [ ] rounds entre 1 et 99 ; repos_round entre 0 et 900.
+- [ ] Durées et répétitions entre 1 et 999 ; aucune valeur à 0 (0 devient 20).
+- [ ] Au moins un exercice, et chaque exercice a un nom non vide.
+- [ ] Les noms sont assez précis pour retrouver la bonne démonstration.
+- [ ] Les notes sont courtes : elles s'affichent sur une ligne, sous le nom.
+- [ ] Aucune durée totale exacte annoncée si la séance contient des répétitions.

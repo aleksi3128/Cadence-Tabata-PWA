@@ -1,0 +1,18 @@
+{
+  "name": "Full Body Circuit",
+  "rounds": 3,
+  "round_rest": 60,
+  "exercises": [
+    { "name": "Crunchs",            "alias": "Crunches",            "work": 30, "rest": 20 },
+    { "name": "Push Ups Wide Grip",  "alias": "Push-ups Wide Grip",  "work": 30, "rest": 20 },
+    { "name": "Plank Hold",          "alias": "Plank",               "work": 30, "rest": 20 },
+    { "name": "Reverse Snow Angels", "alias": "Reverse Snow Angels", "work": 30, "rest": 20 },
+    { "name": "Lunges",              "alias": "Lunges",              "work": 30, "rest": 20 },
+    { "name": "Reverse Crunches",    "alias": "Reverse Crunches",    "work": 30, "rest": 20 },
+    { "name": "Push Ups Classic",    "alias": "Push-ups Classic",    "work": 30, "rest": 20 },
+    { "name": "Russian Twist",       "alias": "Russian Twist",       "work": 30, "rest": 20 },
+    { "name": "Superman",            "alias": "Superman",            "work": 30, "rest": 20 },
+    { "name": "Glute Bridge",        "alias": "Glute Bridge",        "work": 30, "rest": 20 },
+    { "name": "Shoulder Taps",       "alias": "Shoulder Taps",       "work": 30, "rest": 20 }
+  ]
+}

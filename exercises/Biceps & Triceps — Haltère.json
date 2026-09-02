@@ -1,0 +1,16 @@
+{
+  "name": "Biceps & Triceps — Haltère",
+  "rounds": 4,
+  "round_rest": 90,
+  "exercises": [
+    { "name": "Dumbbell Curl right", "alias": "Dumbbell Curl", "work": 30, "rest": 20 },
+    { "name": "Dumbbell Curl left", "alias": "Dumbbell Curl", "work": 30, "rest": 20 },
+    { "name": "Hammer Curl right",    "alias": "Hammer Curl", "work": 30, "rest": 20 },
+    { "name": "Hammer Curl left",    "alias": "Hammer Curl", "work": 30, "rest": 20 },
+    { "name": "Concentration Curl right",                "alias": "Concentration Curl", "work": 30, "rest": 20 },
+    { "name": "Concentration Curl left",                "alias": "Concentration Curl", "work": 30, "rest": 20 },
+    { "name": "Single-Arm Skull Crusher right",          "alias": "Single-Arm Skull Crusher", "work": 30, "rest": 20 },
+    { "name": "Single-Arm Skull Crusher left",          "alias": "Single-Arm Skull Crusher", "work": 30, "rest": 20 }
+
+  ]
+}

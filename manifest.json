@@ -1,0 +1,39 @@
+{
+  "id": "/",
+  "name": "Cadence Tabata — Timer",
+  "short_name": "TABATA",
+  "description": "Timer TABATA — Work / Rest / Round Rest, exercices au temps ou aux répétitions, séances partageables par lien.",
+  "lang": "fr",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
+  "orientation": "any",
+  "background_color": "#0A0B0F",
+  "theme_color": "#0A0B0F",
+  "categories": ["health", "fitness", "sports", "lifestyle"],
+  "icons": [
+    { "src": "icons/icon-64x64.png",   "sizes": "64x64",   "type": "image/png" },
+    { "src": "icons/icon-96x96.png",   "sizes": "96x96",   "type": "image/png" },
+    { "src": "icons/icon-128x128.png", "sizes": "128x128", "type": "image/png" },
+    { "src": "icons/icon-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-256x256.png", "sizes": "256x256", "type": "image/png" },
+    { "src": "icons/icon-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Tabata classique — 8 × 20s / 10s",
+      "short_name": "Tabata 8×",
+      "url": "/?w=Tabata+Classique~8~60~Exercice:20s:10",
+      "icons": [{ "src": "icons/icon-192x192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Mes mesures",
+      "short_name": "Mesures",
+      "url": "/",
+      "icons": [{ "src": "icons/icon-192x192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}

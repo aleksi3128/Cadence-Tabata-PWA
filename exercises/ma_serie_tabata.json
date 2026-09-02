@@ -1,0 +1,17 @@
+{
+  "name": "Ma Série Tabata",
+  "rounds": 8,
+  "round_rest": 60,
+  "exercises": [
+    {
+      "name": "Pike Push-ups",
+      "work": 20,
+      "rest": 10
+    },
+    {
+      "name": "V-ups",
+      "work": 20,
+      "rest": 10
+    }
+  ]
+}
