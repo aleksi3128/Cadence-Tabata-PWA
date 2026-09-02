@@ -124,25 +124,51 @@ l'URL. Servir à la **racine** d'un domaine — `scope` et `start_url` valent `/
 mises à jour de l'application. Un service worker en cache empêche tout
 changement d'atteindre les visiteurs déjà venus.
 
-## Accès aux démonstrations
+## Accès au site
 
-Les médias d'exercices sont sous licence et ne peuvent pas être laissés en accès
-libre (voir plus bas). `install.sh` demande un **code d'accès** qui les réserve
-à leur détenteur.
+Le site est fermé par un **code**, demandé par `install.sh` à l'installation.
+Sans lui rien n'est servi, pas même la page d'accueil : les médias d'exercices
+sont sous licence et ne peuvent pas être laissés en accès libre (voir plus bas).
 
-Une fois par appareil, ouvrir :
+Le code s'ajoute à l'URL sous la forme `?key=<code>` :
 
 ```
-https://<site>/unlock?code=<le code>
+https://<site>/?key=moncode
 ```
 
-Le cookie posé vaut deux ans. Sans lui, `/exercise-db/images/` et
-`/exercise-db/gifs/` répondent 403 ; l'application le détecte et n'affiche
-simplement aucune démonstration. Tout le reste — le chrono, le catalogue, les
-liens de séance partagés — reste ouvert.
+nginx pose alors un cookie valable deux ans ; les visites suivantes n'ont plus
+besoin du paramètre. L'app retient le code et le **réinjecte dans les liens de
+séance** qu'elle fabrique :
 
-La vérification est faite par nginx. Un code contrôlé en JavaScript ne
-protégerait rien : les fichiers resteraient téléchargeables par leur URL.
+```
+https://<site>/?w=Full+Body~8~60~Pompes:30s:10&key=moncode
+```
+
+Un lien partagé reste donc ouvrable — mais il porte le code, donc son
+destinataire obtient l'accès complet au site. Ne le partagez qu'en connaissance
+de cause.
+
+> Le paramètre s'appelle `key` et non `code` : Spotify renvoie son autorisation
+> OAuth sur `?code=…`, que le serveur prendrait pour un code d'accès invalide et
+> qui bloquerait la page au retour de connexion.
+
+### Changer le code
+
+Relancer l'installateur avec le nouveau code — il réécrit la configuration :
+
+```bash
+bash install.sh --code=nouveaucode
+```
+
+Ou à la main, puis recharger nginx :
+
+```bash
+sed -i 's/ancien/nouveau/g' /etc/nginx/conf.d/tabata-access.conf
+nginx -t && systemctl reload nginx
+```
+
+Les cookies déjà posés cessent aussitôt de fonctionner : chaque appareil devra
+repasser par `?key=<nouveau code>`.
 
 ## Mises à jour
 

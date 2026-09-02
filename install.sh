@@ -134,14 +134,19 @@ info "Laissez vide si le dépôt est public."
 ask TOKEN  "Jeton GitHub (invisible à la saisie)" "" silent
 
 printf '\n'
-info "Les démonstrations d'exercices sont sous licence Gym visual : elles ne"
-info "peuvent pas être laissées en accès libre. Un code les réserve à vous."
-info "L'app et les liens de séance partagés, eux, restent ouverts à tous."
+info "Un code ferme le site entier : sans lui, rien n'est servi, pas même"
+info "la page d'accueil. Les démonstrations d'exercices sont sous licence"
+info "Gym visual et ne peuvent pas être laissées en accès libre."
+info ""
+info "Le code s'ajoute à l'URL sous la forme  ?key=<code>  et l'app le"
+info "réinjecte ensuite dans les liens de séance qu'elle fabrique : un lien"
+info "partagé reste donc ouvrable, mais il porte le code."
+info ""
 info "Aucune contrainte de longueur ; lettres, chiffres et . _ ~ - seulement,"
-info "parce que le code voyage dans une URL."
+info "parce qu'il voyage dans une URL."
 info "Laissez vide pour ne rien protéger."
 while :; do
-  ask ACCESS_CODE "Code d'accès aux démonstrations" "$ACCESS_CODE" silent
+  ask ACCESS_CODE "Code d'accès au site" "$ACCESS_CODE" silent
   case "$ACCESS_CODE" in
     "") break ;;
     *[!A-Za-z0-9._~-]*) warn "Caractère non autorisé — lettres, chiffres et . _ ~ - uniquement." ;;
@@ -161,7 +166,7 @@ cat <<RECAP
    Dépôt       : ${REPO}  (branche ${BRANCH})
    Jeton       : $([ -n "$TOKEN" ] && echo "fourni" || echo "aucun — dépôt supposé public")
    Site servi  : ${WEBROOT}
-   Démos       : $([ -n "$ACCESS_CODE" ] && echo "protégées par un code" || echo "EN ACCÈS LIBRE")
+   Accès       : $([ -n "$ACCESS_CODE" ] && echo "fermé par un code" || echo "LIBRE — site ouvert à tous")
    Domaine     : ${DOMAIN:-toutes requêtes}
    Mise à jour : toutes les ${INTERVAL}
   ──────────────────────────────────────────────────────────
@@ -260,45 +265,58 @@ say "3/4 · nginx"
 # dans conf.d, que le nginx.conf de Debian inclut au niveau http.
 install -d -m 755 /etc/nginx/snippets
 if [ -n "$ACCESS_CODE" ]; then
-  # Heredocs QUOTÉS puis substitution par sed : le shell ne doit toucher ni aux
+  # Heredoc QUOTÉ puis substitution par sed : le shell ne doit toucher ni aux
   # $ des variables nginx, ni aux guillemets du Set-Cookie.
   cat > /etc/nginx/conf.d/tabata-access.conf <<'MAPEOF'
 # GÉNÉRÉ par install.sh — relancer le script pour le régénérer.
-# Réserve les démonstrations d'exercices au détenteur du code : elles sont
-# sous licence Gym visual et ne peuvent pas être diffusées librement.
-map $arg_code $tabata_unlock { default 0; "__CODE__" 1; }
-map $cookie_tabata_key $tabata_ok { default 0; "__CODE__" 1; }
+# Ferme le site à qui n'a pas le code. Les démonstrations d'exercices sont
+# sous licence Gym visual et ne peuvent pas être laissées en accès libre.
+#
+# Le paramètre s'appelle « key » et non « code » : Spotify renvoie son
+# autorisation OAuth sur ?code=…, qui serait prise ici pour un code invalide
+# et refuserait la page au retour de connexion.
+map $arg_key            $tabata_arg_ok    { default 0; "__CODE__" 1; }
+map $cookie_tabata_key  $tabata_cookie_ok { default 0; "__CODE__" 1; }
+
+# L'un OU l'autre suffit : le paramètre pour la première visite, le cookie
+# pour toutes les suivantes.
+map "$tabata_arg_ok$tabata_cookie_ok" $tabata_ok {
+    default 0;
+    "10" 1;
+    "01" 1;
+    "11" 1;
+}
+
+# Vide quand l'URL ne porte pas le code : nginx n'ajoute alors pas l'en-tête.
+map $tabata_arg_ok $tabata_set_cookie {
+    default "";
+    1 "tabata_key=__CODE__; Path=/; Max-Age=63072000; HttpOnly; SameSite=Lax";
+}
 MAPEOF
 
-  # Une authentification HTTP classique ferait surgir une boîte de dialogue du
-  # navigateur au premier <img> — en pleine séance. Un cookie posé une fois
-  # pour toutes passe inaperçu, y compris depuis le service worker.
-  cat > /etc/nginx/snippets/tabata-guard.conf <<'GUARDEOF'
-# GÉNÉRÉ par install.sh — inclus par le vhost tabata.
-# Déverrouillage : ouvrir <site>/unlock?code=… une fois, sur chaque appareil.
-location = /unlock {
-    if ($tabata_unlock = 0) { return 403; }
-    add_header Set-Cookie "tabata_key=__CODE__; Path=/; Max-Age=63072000; HttpOnly; SameSite=Lax" always;
-    return 302 /;
-}
+  cat > /etc/nginx/snippets/tabata-gate.conf <<'GATEEOF'
+# GÉNÉRÉ par install.sh — inclus au niveau server du vhost tabata.
+# Rien ne sort du site sans le code, médias compris.
+if ($tabata_ok = 0) { return 403; }
+GATEEOF
 
-# Médias sous licence : sans le cookie, rien ne sort d'ici.
-location ~* ^/exercise-db/(images|gifs)/ {
-    if ($tabata_ok = 0) { return 403; }
-    add_header Cache-Control "public, max-age=31536000, immutable" always;
-    access_log off;
-}
-GUARDEOF
+  cat > /etc/nginx/snippets/tabata-cookie.conf <<'CKEOF'
+# GÉNÉRÉ par install.sh — inclus dans les locations qui servent le document.
+# add_header ne s'hérite pas dans une location qui déclare les siens : il faut
+# donc le répéter là où la navigation aboutit, pas seulement au niveau server.
+add_header Set-Cookie $tabata_set_cookie always;
+CKEOF
 
-  sed -i "s|__CODE__|${ACCESS_CODE}|g" \
-    /etc/nginx/conf.d/tabata-access.conf /etc/nginx/snippets/tabata-guard.conf
-  chmod 640 /etc/nginx/conf.d/tabata-access.conf /etc/nginx/snippets/tabata-guard.conf
+  sed -i "s|__CODE__|${ACCESS_CODE}|g" /etc/nginx/conf.d/tabata-access.conf
+  chmod 640 /etc/nginx/conf.d/tabata-access.conf
   ok "code d'accès enregistré (0640, hors du dépôt et hors du site servi)"
 else
   # Le vhost inclut ces fichiers par un motif : absents, l'include ne matche
   # rien et nginx démarre sans protection, sans erreur.
-  rm -f /etc/nginx/conf.d/tabata-access.conf /etc/nginx/snippets/tabata-guard.conf
-  warn "aucun code : les démonstrations seront en accès libre"
+  rm -f /etc/nginx/conf.d/tabata-access.conf \
+        /etc/nginx/snippets/tabata-gate.conf \
+        /etc/nginx/snippets/tabata-cookie.conf
+  warn "aucun code : le site sera en accès libre"
   info "Rappel : les médias sont © Gym visual et ne peuvent pas être rediffusés."
 fi
 
@@ -322,6 +340,10 @@ server {
     index index.html;
     charset utf-8;
 
+    # Code d'accès, si défini à l'installation. Le motif ne matche rien quand
+    # il n'y en a pas : nginx démarre alors sans protection.
+    include /etc/nginx/snippets/tabata-gate*.conf;
+
 ${REALIP}
     access_log /var/log/nginx/tabata.access.log;
     error_log  /var/log/nginx/tabata.error.log;
@@ -336,6 +358,7 @@ ${REALIP}
     # Un lien de séance partagé (?w=…) est index.html avec une query string :
     # toute navigation retombe sur le document, l'app lit l'URL elle-même.
     location / {
+        include /etc/nginx/snippets/tabata-cookie*.conf;
         try_files \$uri \$uri/ /index.html;
     }
 
@@ -347,6 +370,7 @@ ${REALIP}
     }
 
     location = /index.html {
+        include /etc/nginx/snippets/tabata-cookie*.conf;
         add_header Cache-Control "no-cache" always;
     }
 
@@ -363,10 +387,6 @@ ${REALIP}
         add_header Cache-Control "public, max-age=31536000, immutable" always;
         access_log off;
     }
-
-    # Protection des démonstrations, si un code a été défini. Le motif ne
-    # matche rien quand il n'y en a pas : nginx démarre sans protection.
-    include /etc/nginx/snippets/tabata-guard*.conf;
 
     # Médias : le contenu ne change jamais sans changer de nom.
     location ~* \.(wav|mp3|png|jpe?g|gif|svg|webp|ico|woff2?)\$ {
@@ -473,7 +493,7 @@ cat <<SUMEOF
 ═══════════════════════════════════════════════════════════════════
 
  Réponse locale : ${STATUS:-aucune}
- Démonstrations : $([ -n "$ACCESS_CODE" ] && echo "protégées — ouvrir une fois http://<site>/unlock?code=<votre code>" || echo "en accès libre")
+ Accès          : $([ -n "$ACCESS_CODE" ] && echo "fermé — première visite : http://<site>/?key=<votre code>" || echo "libre")
  Version servie : $(cat "$WEBROOT/version.txt" 2>/dev/null || echo '?')
  Dépôt suivi    : ${REPO} (${BRANCH})
  Mise à jour    : au démarrage, puis toutes les ${INTERVAL}

@@ -109,13 +109,48 @@ const WorkoutLink = (() => {
     };
   }
 
+  /* ── Code d'accès ──────────────────────────────────────────────────
+     Le site peut être fermé par un code contrôlé côté serveur (voir
+     install.sh). Il arrive dans l'URL ; on le retient pour le remettre dans
+     les liens qu'on fabrique, sinon un lien partagé serait inouvrable par
+     son destinataire.
+
+     Le paramètre s'appelle `key` et non `code` : Spotify renvoie son
+     autorisation OAuth sur `?code=…`, que le serveur prendrait pour un code
+     d'accès invalide — et refuserait la page au retour de connexion. */
+  const CODE_PARAM = 'key';
+  const CODE_KEY = 'tabata_access_code';
+
+  const accessCode = () => {
+    try { return localStorage.getItem(CODE_KEY) || ''; } catch (_) { return ''; }
+  };
+
+  /** Retient le code présent dans l'URL, puis l'en retire. */
+  function captureCode() {
+    const m = new RegExp('[?&]' + CODE_PARAM + '=([^&]*)').exec(location.search);
+    if (!m) return;
+    try { localStorage.setItem(CODE_KEY, decodeURIComponent(m[1])); } catch (_) {}
+    // Le serveur a déjà posé son cookie : laisser le code dans la barre
+    // d'adresse ne ferait plus que le semer dans l'historique.
+    //
+    // Découpe textuelle, surtout pas URLSearchParams : celui-ci ré-encoderait
+    // les ~ et : de la séance en %7E et %3A, et decode() ne saurait plus
+    // découper la charge utile qui suit.
+    const rest = location.search
+      .replace(new RegExp('([?&])' + CODE_PARAM + '=[^&]*&?', 'g'), '$1')
+      .replace(/[?&]$/, '');
+    history.replaceState(null, '', location.pathname + rest + location.hash);
+  }
+
   /** Absolute shareable URL for a series. */
   function build(series) {
     const onWeb = location.protocol === 'https:' || location.protocol === 'http:';
     const base = (!onWeb && publicBase())
       ? publicBase().replace(/\/+$/, '') + '/'
       : location.origin + location.pathname;
-    return `${base}?${PARAM}=${encode(series)}`;
+    const code = accessCode();
+    return `${base}?${PARAM}=${encode(series)}`
+         + (code ? `&${CODE_PARAM}=${encodeURIComponent(code)}` : '');
   }
 
   /** Drop ?w= from the address bar so a reload doesn't reopen the preview. */
@@ -127,7 +162,7 @@ const WorkoutLink = (() => {
     history.replaceState(null, '', location.pathname + (q ? '?' + q : '') + location.hash);
   }
 
-  return { PARAM, has, encode, decode, build, clear };
+  return { PARAM, has, encode, decode, build, clear, captureCode, accessCode };
 })();
 
 /* ═══════════════════════════════════════
@@ -3258,8 +3293,12 @@ class MetricsScreen {
    BOOT
    ═══════════════════════════════════════ */
 document.addEventListener('DOMContentLoaded', async () => {
+  // Le code d'accès d'abord : il vient d'être consommé par le serveur, et
+  // handleRedirect() est sur le point de réécrire la query string.
+  WorkoutLink.captureCode();
+
   // Le retour OAuth de Spotify arrive sur ?code=… et écrase la query string.
-  // On le traite en premier : handleRedirect() restaure l'URL d'origine, donc
+  // On le traite ensuite : handleRedirect() restaure l'URL d'origine, donc
   // un éventuel ?w= est de nouveau lisible juste après.
   const spotifyAuth = SpotifyWeb.available() ? await SpotifyWeb.handleRedirect() : null;
 
