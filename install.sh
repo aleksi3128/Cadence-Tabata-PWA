@@ -322,13 +322,15 @@ MAPEOF
 # GÉNÉRÉ par install.sh — inclus au niveau server du vhost tabata.
 # Rien ne sort du site sans la clé, médias compris.
 #
-# Le domaine est écrit EN DUR ici, en plus de server_names : sans --domain le
-# server_name vaut « _ », que server_names ne fait correspondre à rien — et
-# alors plus une seule ressource de la page ne passe, l'app ne charge pas.
+# Le domaine est écrit EN DUR, et « server_names » volontairement ABSENT :
+#   — sans --domain, server_name vaut « _ » et server_names ne correspond à
+#     rien : plus une ressource de la page ne passe, l'app reste blanche ;
+#   — avec --domain, server_names contient déjà ce domaine, et le répéter fait
+#     échouer nginx au démarrage (« conflicting parameter »).
 #
-# valid_referers sans « none » : une requête SANS référent est traitée comme
-# invalide, sinon un simple curl sur l'URL d'un média suffirait à la récupérer.
-valid_referers server_names __DOMAIN__ www.__DOMAIN__;
+# Sans « none » : une requête SANS référent est traitée comme invalide, sinon
+# un simple curl sur l'URL d'un média suffirait à la récupérer.
+valid_referers __DOMAIN__;
 
 # Le refus est explicitement non stockable : sans ça un CDN en amont garde le
 # 403 et l'image reste cassée même une fois la clé fournie. C'est bien arrivé.
