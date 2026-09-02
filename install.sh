@@ -27,6 +27,7 @@ DOMAIN=""
 PROXY_FROM=""
 INTERVAL="15min"
 TOKEN=""
+ACCESS_CODE=""
 ASSUME_YES=0
 
 for a in "$@"; do
@@ -34,6 +35,7 @@ for a in "$@"; do
     --repo=*)       REPO="${a#*=}" ;;
     --branch=*)     BRANCH="${a#*=}" ;;
     --token=*)      TOKEN="${a#*=}" ;;
+    --code=*)       ACCESS_CODE="${a#*=}" ;;
     --webroot=*)    WEBROOT="${a#*=}" ;;
     --domain=*)     DOMAIN="${a#*=}" ;;
     --proxy-from=*) PROXY_FROM="${a#*=}" ;;
@@ -132,6 +134,23 @@ info "Laissez vide si le dépôt est public."
 ask TOKEN  "Jeton GitHub (invisible à la saisie)" "" silent
 
 printf '\n'
+info "Les démonstrations d'exercices sont sous licence Gym visual : elles ne"
+info "peuvent pas être laissées en accès libre. Un code les réserve à vous."
+info "L'app et les liens de séance partagés, eux, restent ouverts à tous."
+info "Aucune contrainte de longueur ; lettres, chiffres et . _ ~ - seulement,"
+info "parce que le code voyage dans une URL."
+info "Laissez vide pour ne rien protéger."
+while :; do
+  ask ACCESS_CODE "Code d'accès aux démonstrations" "$ACCESS_CODE" silent
+  case "$ACCESS_CODE" in
+    "") break ;;
+    *[!A-Za-z0-9._~-]*) warn "Caractère non autorisé — lettres, chiffres et . _ ~ - uniquement." ;;
+    *) break ;;
+  esac
+  [ -z "$TTY" ] && break
+done
+
+printf '\n'
 info "Nginx Proxy Manager termine le HTTPS en amont et proxifie vers ce CT."
 ask DOMAIN     "Nom de domaine servi (vide = toutes requêtes)" "$DOMAIN"
 ask PROXY_FROM "Réseau du proxy, pour retrouver l'IP réelle (ex. 192.168.2.0/24)" "$PROXY_FROM"
@@ -142,6 +161,7 @@ cat <<RECAP
    Dépôt       : ${REPO}  (branche ${BRANCH})
    Jeton       : $([ -n "$TOKEN" ] && echo "fourni" || echo "aucun — dépôt supposé public")
    Site servi  : ${WEBROOT}
+   Démos       : $([ -n "$ACCESS_CODE" ] && echo "protégées par un code" || echo "EN ACCÈS LIBRE")
    Domaine     : ${DOMAIN:-toutes requêtes}
    Mise à jour : toutes les ${INTERVAL}
   ──────────────────────────────────────────────────────────
@@ -236,6 +256,52 @@ ok "$WEBROOT — version $(cat "$WEBROOT/version.txt" 2>/dev/null || echo '?')"
 # ── 3. nginx ───────────────────────────────────────────────────────
 say "3/4 · nginx"
 
+# Les directives « map » ne peuvent pas vivre dans un bloc server : elles vont
+# dans conf.d, que le nginx.conf de Debian inclut au niveau http.
+install -d -m 755 /etc/nginx/snippets
+if [ -n "$ACCESS_CODE" ]; then
+  # Heredocs QUOTÉS puis substitution par sed : le shell ne doit toucher ni aux
+  # $ des variables nginx, ni aux guillemets du Set-Cookie.
+  cat > /etc/nginx/conf.d/tabata-access.conf <<'MAPEOF'
+# GÉNÉRÉ par install.sh — relancer le script pour le régénérer.
+# Réserve les démonstrations d'exercices au détenteur du code : elles sont
+# sous licence Gym visual et ne peuvent pas être diffusées librement.
+map $arg_code $tabata_unlock { default 0; "__CODE__" 1; }
+map $cookie_tabata_key $tabata_ok { default 0; "__CODE__" 1; }
+MAPEOF
+
+  # Une authentification HTTP classique ferait surgir une boîte de dialogue du
+  # navigateur au premier <img> — en pleine séance. Un cookie posé une fois
+  # pour toutes passe inaperçu, y compris depuis le service worker.
+  cat > /etc/nginx/snippets/tabata-guard.conf <<'GUARDEOF'
+# GÉNÉRÉ par install.sh — inclus par le vhost tabata.
+# Déverrouillage : ouvrir <site>/unlock?code=… une fois, sur chaque appareil.
+location = /unlock {
+    if ($tabata_unlock = 0) { return 403; }
+    add_header Set-Cookie "tabata_key=__CODE__; Path=/; Max-Age=63072000; HttpOnly; SameSite=Lax" always;
+    return 302 /;
+}
+
+# Médias sous licence : sans le cookie, rien ne sort d'ici.
+location ~* ^/exercise-db/(images|gifs)/ {
+    if ($tabata_ok = 0) { return 403; }
+    add_header Cache-Control "public, max-age=31536000, immutable" always;
+    access_log off;
+}
+GUARDEOF
+
+  sed -i "s|__CODE__|${ACCESS_CODE}|g" \
+    /etc/nginx/conf.d/tabata-access.conf /etc/nginx/snippets/tabata-guard.conf
+  chmod 640 /etc/nginx/conf.d/tabata-access.conf /etc/nginx/snippets/tabata-guard.conf
+  ok "code d'accès enregistré (0640, hors du dépôt et hors du site servi)"
+else
+  # Le vhost inclut ces fichiers par un motif : absents, l'include ne matche
+  # rien et nginx démarre sans protection, sans erreur.
+  rm -f /etc/nginx/conf.d/tabata-access.conf /etc/nginx/snippets/tabata-guard.conf
+  warn "aucun code : les démonstrations seront en accès libre"
+  info "Rappel : les médias sont © Gym visual et ne peuvent pas être rediffusés."
+fi
+
 REALIP=""
 if [ -n "$PROXY_FROM" ]; then
   REALIP="    set_real_ip_from ${PROXY_FROM};
@@ -297,6 +363,10 @@ ${REALIP}
         add_header Cache-Control "public, max-age=31536000, immutable" always;
         access_log off;
     }
+
+    # Protection des démonstrations, si un code a été défini. Le motif ne
+    # matche rien quand il n'y en a pas : nginx démarre sans protection.
+    include /etc/nginx/snippets/tabata-guard*.conf;
 
     # Médias : le contenu ne change jamais sans changer de nom.
     location ~* \.(wav|mp3|png|jpe?g|gif|svg|webp|ico|woff2?)\$ {
@@ -403,6 +473,7 @@ cat <<SUMEOF
 ═══════════════════════════════════════════════════════════════════
 
  Réponse locale : ${STATUS:-aucune}
+ Démonstrations : $([ -n "$ACCESS_CODE" ] && echo "protégées — ouvrir une fois http://<site>/unlock?code=<votre code>" || echo "en accès libre")
  Version servie : $(cat "$WEBROOT/version.txt" 2>/dev/null || echo '?')
  Dépôt suivi    : ${REPO} (${BRANCH})
  Mise à jour    : au démarrage, puis toutes les ${INTERVAL}

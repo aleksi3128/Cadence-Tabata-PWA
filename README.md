@@ -79,6 +79,26 @@ l'URL. Servir à la **racine** d'un domaine — `scope` et `start_url` valent `/
 mises à jour de l'application. Un service worker en cache empêche tout
 changement d'atteindre les visiteurs déjà venus.
 
+## Accès aux démonstrations
+
+Les médias d'exercices sont sous licence et ne peuvent pas être laissés en accès
+libre (voir plus bas). `install.sh` demande un **code d'accès** qui les réserve
+à leur détenteur.
+
+Une fois par appareil, ouvrir :
+
+```
+https://<site>/unlock?code=<le code>
+```
+
+Le cookie posé vaut deux ans. Sans lui, `/exercise-db/images/` et
+`/exercise-db/gifs/` répondent 403 ; l'application le détecte et n'affiche
+simplement aucune démonstration. Tout le reste — le chrono, le catalogue, les
+liens de séance partagés — reste ouvert.
+
+La vérification est faite par nginx. Un code contrôlé en JavaScript ne
+protégerait rien : les fichiers resteraient téléchargeables par leur URL.
+
 ## Mises à jour
 
 Ce dépôt est republié depuis le poste de développement à chaque déploiement.

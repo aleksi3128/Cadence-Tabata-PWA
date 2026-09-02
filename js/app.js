@@ -923,7 +923,19 @@ class ExercisePreview {
     if (!ex) return;
     const m = ExerciseDB.media(ex);
 
-    // La vignette (8 ko) s'affiche immédiatement, le GIF (90 ko) la remplace
+    // Les démonstrations peuvent être protégées côté serveur (voir install.sh
+    // du dépôt publié) : sans le cookie d'accès elles répondent 403. On vérifie
+    // donc que la vignette arrive AVANT d'ouvrir la carte — mieux vaut pas de
+    // carte du tout qu'une carte à l'image cassée.
+    const reachable = await new Promise(resolve => {
+      const probe = new Image();
+      probe.onload  = () => resolve(true);
+      probe.onerror = () => resolve(false);
+      probe.src = m.thumb;
+    });
+    if (!reachable || seq !== this._seq) return;
+
+    // La vignette (8 ko) s'affiche immédiatement, le GIF (15 ko) la remplace
     // dès qu'il est décodé : un repos dure dix secondes, la carte ne peut pas
     // rester vide pendant que le réseau travaille.
     this._img.src = m.thumb;
@@ -1658,6 +1670,10 @@ class UI {
 
     grid.querySelectorAll('.picker-card').forEach(card => {
       card.addEventListener('click', () => this._openPickerDetail(card.dataset.id));
+      // Média refusé (403) ou absent : laisser la plaque blanche vide plutôt
+      // que l'icône d'image cassée du navigateur.
+      card.querySelector('.picker-card-img')
+          .addEventListener('error', e => { e.target.style.visibility = 'hidden'; });
     });
   }
 
@@ -1672,7 +1688,10 @@ class UI {
 
     const m = ExerciseDB.media(ex);
     const l = ExerciseDB.labels(ex);
-    this._$('pickerDetailImg').src = m.gif;     // la fiche montre le mouvement
+    const detailImg = this._$('pickerDetailImg');
+    detailImg.style.visibility = '';
+    detailImg.onerror = () => { detailImg.style.visibility = 'hidden'; };
+    detailImg.src = m.gif;                     // la fiche montre le mouvement
     this._$('pickerDetailName').textContent = ex.n;
 
     const chips = [

@@ -5,7 +5,7 @@
    ═══════════════════════════════════════ */
 'use strict';
 
-const VERSION      = '20260902-429b049';
+const VERSION      = '20260902-55e50c7';
 const SHELL_CACHE  = `tabata-shell-${VERSION}`;
 const ASSET_CACHE  = `tabata-assets-${VERSION}`;
 const FONT_CACHE   = `tabata-fonts-${VERSION}`;
