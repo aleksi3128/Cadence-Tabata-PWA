@@ -533,9 +533,60 @@ systemctl daemon-reload
 systemctl enable --now tabata-update.timer >/dev/null 2>&1
 ok "timer actif — au démarrage du CT, puis toutes les $INTERVAL"
 
+# ── 5. Vérification ────────────────────────────────────────────────
+# Une configuration qui passe « nginx -t » peut très bien servir une page
+# blanche : il suffit que les fichiers appelés par index.html soient refusés.
+# On interroge donc le site pour de vrai, avant de dire que c'est prêt.
+say "Vérification"
+
+HOSTHDR="${DOMAIN:-localhost}"
+Q=""
+[ -n "$ACCESS_CODE" ] && Q="?key=${ACCESS_CODE}"
+PAGE="http://127.0.0.1/${Q}"
+
+probe() {                     # probe <libellé> <url> <attendu> [référent]
+  local label="$1" url="$2" want="$3" ref="${4:-}" got
+  if [ -n "$ref" ]; then
+    got=$(curl -s -o /dev/null -m 8 -H "Host: $HOSTHDR" -e "$ref" -w '%{http_code}' "$url" || echo 000)
+  else
+    got=$(curl -s -o /dev/null -m 8 -H "Host: $HOSTHDR" -w '%{http_code}' "$url" || echo 000)
+  fi
+  if [ "$got" = "$want" ]; then
+    ok "$label → $got"
+  else
+    warn "$label → $got (attendu $want)"
+    FAILED=$((FAILED + 1))
+  fi
+}
+
+FAILED=0
+REF="http://${HOSTHDR}/${Q}"
+probe "page d'accueil"          "$PAGE" 200
+probe "js/app.js"               "http://127.0.0.1/js/app.js"   200 "$REF"
+probe "css/style.css"           "http://127.0.0.1/css/style.css" 200 "$REF"
+probe "catalogue d'exercices"   "http://127.0.0.1/exercise-db/catalog.json" 200 "$REF"
+
+FIRST_GIF="$(ls "$WEBROOT/exercise-db/gifs" 2>/dev/null | head -1)"
+[ -n "$FIRST_GIF" ] && probe "une démonstration" \
+  "http://127.0.0.1/exercise-db/gifs/$FIRST_GIF" 200 "$REF"
+
+if [ -n "$ACCESS_CODE" ]; then
+  probe "page sans la clé (doit être refusée)" "http://127.0.0.1/" 403
+  [ -n "$FIRST_GIF" ] && probe "démonstration en accès direct (doit être refusée)" \
+    "http://127.0.0.1/exercise-db/gifs/$FIRST_GIF" 403
+fi
+
+if [ "$FAILED" -gt 0 ]; then
+  printf '\n'
+  die "$FAILED vérification(s) en échec — le site ne fonctionnera pas correctement.
+  Regarde  tail -20 /var/log/nginx/tabata.error.log
+  et relance le script. Rien n'est perdu, il est rejouable."
+fi
+ok "tout répond comme attendu"
+
 # ── Résumé ─────────────────────────────────────────────────────────
 IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
-STATUS="$(curl -sI --max-time 5 http://127.0.0.1/ 2>/dev/null | head -1 | tr -d '\r' || echo '?')"
+STATUS="$(curl -sI --max-time 5 -H "Host: $HOSTHDR" "$PAGE" 2>/dev/null | head -1 | tr -d '\r' || echo '?')"
 cat <<SUMEOF
 
 ═══════════════════════════════════════════════════════════════════
