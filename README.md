@@ -54,14 +54,46 @@ version.txt         empreinte du build
 ## Servir en production
 
 `install.sh` installe le tout sur un conteneur Debian : nginx, le clone, et une
-mise à jour automatique qui suit ce dépôt.
+mise à jour automatique qui suit ce dépôt. Il pose ses questions au fur et à
+mesure. Prévu pour un CT Proxmox derrière un reverse proxy qui termine le HTTPS.
+
+### Le jeton d'accès
+
+Ce dépôt est privé. GitHub n'accepte plus l'authentification par mot de passe :
+il faut un **jeton**, et le nom d'utilisateur associé n'est ni votre adresse
+e-mail, ni votre identifiant — c'est la chaîne littérale `x-access-token`.
+
+Créer le jeton : GitHub → Settings → Developer settings → Personal access
+tokens → **Fine-grained tokens**. Le limiter à ce seul dépôt, avec la
+permission **Contents : Read-only**. Un jeton en lecture seule ne peut rien
+casser s'il fuite depuis le serveur.
+
+### Amorçage sur une machine nue
+
+`install.sh` vit dans ce dépôt : sur un serveur vierge, il faut donc le
+récupérer avant de pouvoir cloner. L'API GitHub le sert directement :
 
 ```bash
-bash install.sh
+export GH_TOKEN=github_pat_xxxxxxxx
+
+curl -sL -H "Authorization: Bearer $GH_TOKEN" \
+     -H "Accept: application/vnd.github.raw" \
+     -o install.sh \
+     https://api.github.com/repos/aleksiiiiiii/Cadence-Tabata-PWA/contents/install.sh
+
+bash install.sh --token="$GH_TOKEN"
 ```
 
-Il pose ses questions au fur et à mesure. Prévu pour un CT Proxmox derrière un
-reverse proxy qui termine le HTTPS.
+Le script se charge du reste, jeton compris : il l'enregistre dans
+`/root/.git-credentials` en 0600, jamais dans l'URL du dépôt — là, il
+apparaîtrait dans `git remote -v`, dans les journaux et dans le message
+d'erreur de chaque `git pull`.
+
+Pour cloner à la main sans passer par le script :
+
+```bash
+git clone https://x-access-token:$GH_TOKEN@github.com/aleksiiiiiii/Cadence-Tabata-PWA.git
+```
 
 Pour un autre hébergeur, trois règles suffisent :
 
