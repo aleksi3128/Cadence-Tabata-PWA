@@ -20,7 +20,7 @@
 # ═══════════════════════════════════════════════════════════════════
 set -euo pipefail
 
-REPO="https://github.com/aleksiiiiiii/Cadence-Tabata-PWA.git"
+REPO="https://github.com/aleksi3128/Cadence-Tabata-PWA.git"
 WEBROOT="/var/www/cadence-tabata"
 BRANCH="main"
 DOMAIN=""

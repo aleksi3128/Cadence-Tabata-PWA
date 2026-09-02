@@ -7,7 +7,7 @@ Un serveur web statique suffit. Rien à compiler, rien à installer — ni Node,
 Python, ni dépendances.
 
 ```bash
-git clone https://github.com/aleksiiiiiii/Cadence-Tabata-PWA.git
+git clone https://github.com/aleksi3128/Cadence-Tabata-PWA.git
 cd Cadence-Tabata-PWA && python3 -m http.server 8080   # et voilà
 ```
 
@@ -85,7 +85,7 @@ curl -fsSL -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/user \
 curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
      -H "Accept: application/vnd.github.raw" \
      -o install.sh \
-     https://api.github.com/repos/aleksiiiiiii/Cadence-Tabata-PWA/contents/install.sh
+     https://api.github.com/repos/aleksi3128/Cadence-Tabata-PWA/contents/install.sh
 
 bash install.sh --token="$GH_TOKEN"
 ```
@@ -105,7 +105,7 @@ d'erreur de chaque `git pull`.
 Pour cloner à la main sans passer par le script :
 
 ```bash
-git clone https://x-access-token:$GH_TOKEN@github.com/aleksiiiiiii/Cadence-Tabata-PWA.git
+git clone https://x-access-token:$GH_TOKEN@github.com/aleksi3128/Cadence-Tabata-PWA.git
 ```
 
 Pour un autre hébergeur, trois règles suffisent :
