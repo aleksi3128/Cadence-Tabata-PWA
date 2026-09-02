@@ -285,9 +285,8 @@ maximale, et un paramètre placé après elle se fait tronquer par les aperçus 
 messagerie. L'ordre reste sans importance pour le décodage.
 
 Le code n'est PAS une donnée de séance : il n'a rien à voir avec la grammaire
-ci-dessus, il ouvre seulement l'accès au site. À la première visite le serveur
-pose un cookie de deux ans ; les liens suivants n'en ont plus besoin, mais le
-garder ne gêne pas.
+ci-dessus, il ouvre seulement l'accès au site. Aucun cookie n'est posé : il doit
+figurer dans CHAQUE lien, sans quoi le serveur répond 403.
 
 Attention à ne pas le confondre avec `code` : ce nom-là est réservé au retour
 d'autorisation OAuth de Spotify.

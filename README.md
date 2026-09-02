@@ -126,53 +126,59 @@ changement d'atteindre les visiteurs déjà venus.
 
 ## Accès au site
 
-Le site est fermé par un **code**, demandé par `install.sh` à l'installation.
-Sans lui rien n'est servi, pas même la page d'accueil : les médias d'exercices
+Le site est fermé par une **clé**, demandée par `install.sh` à l'installation.
+Sans elle rien n'est servi, pas même la page d'accueil : les médias d'exercices
 sont sous licence et ne peuvent pas être laissés en accès libre (voir plus bas).
 
-Le code s'ajoute à l'URL sous la forme `?key=<code>` :
+**Aucun cookie n'est posé.** La clé voyage dans le lien, et doit y rester :
 
 ```
-https://<site>/?key=moncode
+https://<site>/?key=<la clé>
 ```
 
-nginx pose alors un cookie valable deux ans ; les visites suivantes n'ont plus
-besoin du paramètre. L'app retient le code et le **réinjecte en tête des liens
-de séance** qu'elle fabrique :
+L'app la conserve dans la barre d'adresse et la **place en tête des liens de
+séance** qu'elle fabrique :
 
 ```
-https://<site>/?key=moncode&w=Full+Body~8~60~Pompes:30s:10
+https://<site>/?key=<la clé>&w=Full+Body~8~60~Pompes:30s:10
 ```
 
 En tête et non à la fin : la charge utile d'une séance n'a pas de longueur
 maximale, et un paramètre placé après elle se fait tronquer par les aperçus de
 messagerie.
 
-Un lien partagé reste donc ouvrable — mais il porte le code, donc son
-destinataire obtient l'accès complet au site. Ne le partagez qu'en connaissance
-de cause.
+Un lien partagé reste donc ouvrable — mais il porte la clé, donc son
+destinataire obtient l'accès complet. Ne le partagez qu'en connaissance de cause.
 
-> Le paramètre s'appelle `key` et non `code` : Spotify renvoie son autorisation
-> OAuth sur `?code=…`, que le serveur prendrait pour un code d'accès invalide et
-> qui bloquerait la page au retour de connexion.
+> La clé s'appelle `key` et non `code` : Spotify renvoie son autorisation OAuth
+> sur `?code=…`, que le serveur prendrait pour une clé invalide et qui
+> bloquerait la page au retour de connexion.
 
-### Changer le code
+### Les fichiers appelés par la page
 
-Relancer l'installateur avec le nouveau code — il réécrit la configuration :
+Une page porte la clé, mais pas les fichiers qu'elle demande : un
+`<img src="exercise-db/gifs/…">` part sans aucun paramètre. Ces requêtes sont
+reconnues à leur **référent** — la page du site qui les a déclenchées. Un accès
+direct à l'URL d'un média, sans clé ni référent, est refusé.
+
+C'est une protection contre l'accès et l'indexation, pas contre un
+attaquant : un référent se falsifie. Elle suffit à ce pour quoi elle est là,
+empêcher que les médias sous licence soient publiquement récupérables.
+
+### Changer la clé
 
 ```bash
-bash install.sh --code=nouveaucode
+bash install.sh --code=nouvelleclé
 ```
 
 Ou à la main, puis recharger nginx :
 
 ```bash
-sed -i 's/ancien/nouveau/g' /etc/nginx/conf.d/tabata-access.conf
+sed -i 's/ancienne/nouvelle/g' /etc/nginx/conf.d/tabata-access.conf
 nginx -t && systemctl reload nginx
 ```
 
-Les cookies déjà posés cessent aussitôt de fonctionner : chaque appareil devra
-repasser par `?key=<nouveau code>`.
+Les anciens liens cessent aussitôt de fonctionner.
 
 ## Mises à jour
 

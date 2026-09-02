@@ -125,21 +125,15 @@ const WorkoutLink = (() => {
     try { return localStorage.getItem(CODE_KEY) || ''; } catch (_) { return ''; }
   };
 
-  /** Retient le code présent dans l'URL, puis l'en retire. */
+  /**
+   * Retient la clé présente dans l'URL. Elle y RESTE : le serveur ne pose
+   * aucun cookie, donc chaque navigation doit la reporter — un rechargement
+   * sur une URL sans clé se solderait par un 403.
+   */
   function captureCode() {
     const m = new RegExp('[?&]' + CODE_PARAM + '=([^&]*)').exec(location.search);
     if (!m) return;
     try { localStorage.setItem(CODE_KEY, decodeURIComponent(m[1])); } catch (_) {}
-    // Le serveur a déjà posé son cookie : laisser le code dans la barre
-    // d'adresse ne ferait plus que le semer dans l'historique.
-    //
-    // Découpe textuelle, surtout pas URLSearchParams : celui-ci ré-encoderait
-    // les ~ et : de la séance en %7E et %3A, et decode() ne saurait plus
-    // découper la charge utile qui suit.
-    const rest = location.search
-      .replace(new RegExp('([?&])' + CODE_PARAM + '=[^&]*&?', 'g'), '$1')
-      .replace(/[?&]$/, '');
-    history.replaceState(null, '', location.pathname + rest + location.hash);
   }
 
   /** Absolute shareable URL for a series. */
@@ -157,13 +151,16 @@ const WorkoutLink = (() => {
          + `${PARAM}=${encode(series)}`;
   }
 
-  /** Drop ?w= from the address bar so a reload doesn't reopen the preview. */
+  /**
+   * Drop ?w= from the address bar so a reload doesn't reopen the preview.
+   * La clé d'accès, elle, doit rester : sans cookie, un rechargement sur une
+   * URL qui ne la porte plus renverrait 403.
+   */
   function clear() {
     if (!has()) return;
-    const p = new URLSearchParams(location.search);
-    p.delete(PARAM);
-    const q = p.toString();
-    history.replaceState(null, '', location.pathname + (q ? '?' + q : '') + location.hash);
+    const code = accessCode();
+    const q = code ? `?${CODE_PARAM}=${encodeURIComponent(code)}` : '';
+    history.replaceState(null, '', location.pathname + q + location.hash);
   }
 
   return { PARAM, has, encode, decode, build, clear, captureCode, accessCode };

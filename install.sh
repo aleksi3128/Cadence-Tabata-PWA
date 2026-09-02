@@ -265,65 +265,62 @@ say "3/4 · nginx"
 # dans conf.d, que le nginx.conf de Debian inclut au niveau http.
 install -d -m 755 /etc/nginx/snippets
 if [ -n "$ACCESS_CODE" ]; then
-  # Heredoc QUOTÉ puis substitution par sed : le shell ne doit toucher ni aux
-  # $ des variables nginx, ni aux guillemets du Set-Cookie.
+  # Heredoc QUOTÉ puis substitution par sed : le shell ne doit pas toucher aux
+  # $ des variables nginx.
   cat > /etc/nginx/conf.d/tabata-access.conf <<'MAPEOF'
 # GÉNÉRÉ par install.sh — relancer le script pour le régénérer.
-# Ferme le site à qui n'a pas le code. Les démonstrations d'exercices sont
+# Ferme le site à qui n'a pas la clé. Les démonstrations d'exercices sont
 # sous licence Gym visual et ne peuvent pas être laissées en accès libre.
 #
+# AUCUN COOKIE : la clé voyage dans le lien, et rien d'autre.
+#
 # Le paramètre s'appelle « key » et non « code » : Spotify renvoie son
-# autorisation OAuth sur ?code=…, qui serait prise ici pour un code invalide
+# autorisation OAuth sur ?code=…, qui serait prise ici pour une clé invalide
 # et refuserait la page au retour de connexion.
-map $arg_key            $tabata_arg_ok    { default 0; "__CODE__" 1; }
-map $cookie_tabata_key  $tabata_cookie_ok { default 0; "__CODE__" 1; }
+map $arg_key $tabata_key_ok { default 0; "__CODE__" 1; }
 
-# L'un OU l'autre suffit : le paramètre pour la première visite, le cookie
-# pour toutes les suivantes.
-map "$tabata_arg_ok$tabata_cookie_ok" $tabata_ok {
+# Une page porte la clé dans son URL, mais pas les fichiers qu'elle appelle :
+# <img src="exercise-db/gifs/x.gif"> part sans le moindre paramètre. Ces
+# requêtes-là sont reconnues à leur référent, qui est la page elle-même.
+# $invalid_referer vaut "" quand le référent est le site, "1" sinon.
+#
+#   clé + référent  →  décision
+#      1        ""       "1"   passe (page avec la clé, référent interne)
+#      1        "1"      "11"  passe (page avec la clé, sans référent)
+#      0        ""       "0"   passe (fichier appelé par une page du site)
+#      0        "1"      "01"  REFUSÉ (accès direct, sans clé ni référent)
+map "$tabata_key_ok$invalid_referer" $tabata_deny {
     default 0;
-    "10" 1;
     "01" 1;
-    "11" 1;
-}
-
-# Vide quand l'URL ne porte pas le code : nginx n'ajoute alors pas l'en-tête.
-map $tabata_arg_ok $tabata_set_cookie {
-    default "";
-    1 "tabata_key=__CODE__; Path=/; Max-Age=63072000; HttpOnly; SameSite=Lax";
 }
 MAPEOF
 
   cat > /etc/nginx/snippets/tabata-gate.conf <<'GATEEOF'
 # GÉNÉRÉ par install.sh — inclus au niveau server du vhost tabata.
-# Rien ne sort du site sans le code, médias compris.
+# Rien ne sort du site sans la clé, médias compris.
 #
-# Le refus est explicitement non stockable : sans ça un CDN en amont
-# (Cloudflare) garde le 403 et l'image reste cassée même une fois le code
-# fourni. C'est bien arrivé.
-add_header Cache-Control "no-store" always;
-if ($tabata_ok = 0) { return 403; }
-GATEEOF
+# valid_referers sans « none » : une requête SANS référent est traitée comme
+# invalide, sinon un simple curl sur l'URL d'un média suffirait à la récupérer.
+valid_referers server_names;
 
-  cat > /etc/nginx/snippets/tabata-cookie.conf <<'CKEOF'
-# GÉNÉRÉ par install.sh — inclus dans les locations qui servent le document.
-# add_header ne s'hérite pas dans une location qui déclare les siens : il faut
-# donc le répéter là où la navigation aboutit, pas seulement au niveau server.
-add_header Set-Cookie $tabata_set_cookie always;
-CKEOF
+# Le refus est explicitement non stockable : sans ça un CDN en amont garde le
+# 403 et l'image reste cassée même une fois la clé fournie. C'est bien arrivé.
+add_header Cache-Control "no-store" always;
+if ($tabata_deny) { return 403; }
+GATEEOF
 
   sed -i "s|__CODE__|${ACCESS_CODE}|g" /etc/nginx/conf.d/tabata-access.conf
   chmod 640 /etc/nginx/conf.d/tabata-access.conf
-  ok "code d'accès enregistré (0640, hors du dépôt et hors du site servi)"
+  ok "clé enregistrée (0640, hors du dépôt et hors du site servi)"
+  info "Aucun cookie : la clé doit rester dans le lien."
 else
   # Le vhost inclut ces fichiers par un motif : absents, l'include ne matche
   # rien et nginx démarre sans protection, sans erreur.
-  rm -f /etc/nginx/conf.d/tabata-access.conf \
-        /etc/nginx/snippets/tabata-gate.conf \
-        /etc/nginx/snippets/tabata-cookie.conf
-  warn "aucun code : le site sera en accès libre"
+  rm -f /etc/nginx/conf.d/tabata-access.conf /etc/nginx/snippets/tabata-gate.conf
+  warn "aucune clé : le site sera en accès libre"
   info "Rappel : les médias sont © Gym visual et ne peuvent pas être rediffusés."
 fi
+rm -f /etc/nginx/snippets/tabata-cookie.conf     # modèle par cookie, abandonné
 
 # « public » autorise tout cache intermédiaire à garder la réponse ET à la
 # resservir à n'importe qui. Sur un site fermé par un code, Cloudflare mettait
@@ -371,7 +368,6 @@ ${REALIP}
     # Un lien de séance partagé (?w=…) est index.html avec une query string :
     # toute navigation retombe sur le document, l'app lit l'URL elle-même.
     location / {
-        include /etc/nginx/snippets/tabata-cookie*.conf;
         try_files \$uri \$uri/ /index.html;
     }
 
@@ -383,7 +379,6 @@ ${REALIP}
     }
 
     location = /index.html {
-        include /etc/nginx/snippets/tabata-cookie*.conf;
         add_header Cache-Control "no-cache" always;
     }
 
