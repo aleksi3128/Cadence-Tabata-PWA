@@ -160,6 +160,21 @@ info "Nginx Proxy Manager termine le HTTPS en amont et proxifie vers ce CT."
 ask DOMAIN     "Nom de domaine servi (vide = toutes requêtes)" "$DOMAIN"
 ask PROXY_FROM "Réseau du proxy, pour retrouver l'IP réelle (ex. 192.168.2.0/24)" "$PROXY_FROM"
 
+# Sans domaine, le contrôle de référent ne peut fonctionner : aucune ressource
+# de la page ne passerait et l'app resterait blanche. Mieux vaut le refuser ici
+# que livrer un site muet.
+if [ -n "$ACCESS_CODE" ] && [ -z "$DOMAIN" ]; then
+  printf '\n'
+  warn "Une clé sans nom de domaine ne peut pas fonctionner."
+  info "Les fichiers appelés par la page sont reconnus à leur référent, qui"
+  info "porte le domaine. Sans lui, tout serait refusé et l'app resterait blanche."
+  while [ -z "$DOMAIN" ]; do
+    ask DOMAIN "Nom de domaine servi (ex. tabata.mondomaine.fr)" ""
+    [ -z "$TTY" ] && break
+  done
+  [ -n "$DOMAIN" ] || die "Nom de domaine requis dès qu'une clé est définie (--domain=…)."
+fi
+
 printf '\n'
 cat <<RECAP
   ──────────────────────────────────────────────────────────
@@ -241,6 +256,14 @@ if ! curl -fsS --max-time 10 -o /dev/null https://github.com 2>/dev/null; then
   die "github.com est injoignable depuis ce conteneur."
 fi
 
+# git refuse d'opérer sur un dépôt qui ne lui appartient pas (« dubious
+# ownership »). Le clone est donné à www-data pour que nginx le lise, mais la
+# mise à jour tourne en root : sans cette exception, le timer échoue en
+# silence à chaque passage et le site reste figé sur sa version d'installation.
+git config --system --get-all safe.directory 2>/dev/null | grep -qxF "$WEBROOT" \
+  || git config --system --add safe.directory "$WEBROOT"
+ok "git : $WEBROOT déclaré sûr (le timer tourne en root)"
+
 if [ -d "$WEBROOT/.git" ]; then
   info "Site déjà cloné — mise à jour plutôt que clone."
   git -C "$WEBROOT" remote set-url origin "$REPO"
@@ -299,9 +322,13 @@ MAPEOF
 # GÉNÉRÉ par install.sh — inclus au niveau server du vhost tabata.
 # Rien ne sort du site sans la clé, médias compris.
 #
+# Le domaine est écrit EN DUR ici, en plus de server_names : sans --domain le
+# server_name vaut « _ », que server_names ne fait correspondre à rien — et
+# alors plus une seule ressource de la page ne passe, l'app ne charge pas.
+#
 # valid_referers sans « none » : une requête SANS référent est traitée comme
 # invalide, sinon un simple curl sur l'URL d'un média suffirait à la récupérer.
-valid_referers server_names;
+valid_referers server_names __DOMAIN__ www.__DOMAIN__;
 
 # Le refus est explicitement non stockable : sans ça un CDN en amont garde le
 # 403 et l'image reste cassée même une fois la clé fournie. C'est bien arrivé.
@@ -309,6 +336,7 @@ add_header Cache-Control "no-store" always;
 if ($tabata_deny) { return 403; }
 GATEEOF
 
+  sed -i "s|__DOMAIN__|${DOMAIN}|g" /etc/nginx/snippets/tabata-gate.conf
   sed -i "s|__CODE__|${ACCESS_CODE}|g" /etc/nginx/conf.d/tabata-access.conf
   chmod 640 /etc/nginx/conf.d/tabata-access.conf
   ok "clé enregistrée (0640, hors du dépôt et hors du site servi)"
@@ -439,6 +467,12 @@ cat > /usr/local/bin/tabata-update <<'UPDEOF'
 # Tire la dernière version du site publié. Écrit par install.sh.
 set -euo pipefail
 . /etc/default/cadence-tabata
+
+# Filet pour les installations antérieures au correctif : sans cette
+# exception, git refuse le dépôt (« dubious ownership ») et la mise à jour
+# échoue à chaque passage sans que rien ne le signale côté site.
+git config --system --get-all safe.directory 2>/dev/null | grep -qxF "$TABATA_WEBROOT" \
+  || git config --system --add safe.directory "$TABATA_WEBROOT"
 
 cd "$TABATA_WEBROOT"
 
